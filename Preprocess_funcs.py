@@ -6,6 +6,8 @@ Created on Thu Sep 26 11:10:30 2019
 @author: jacob
 """
 
+#Funcs for preprocess questions
+
 """
 Utilities for preprocessing sequence data.
 Special tokens included:
@@ -88,3 +90,36 @@ def decode(seq_idx, idx_to_token, delim=None, stop_at_end=True):
             return tokens
         else:
             return delim.join(tokens)
+        
+##Preprocess funcs for image
+            
+def build_model(img_dir, output_h5_file, img_h, img_w, model, model_stage=3,
+                batch_size=64):
+    if not hasattr(torchvision.models, model):
+        raise ValueError('Invalid model "%s"' % model)
+    if not 'resnet' in model:
+        raise ValueError('Feature extraction only supports ResNets')
+    cnn = getattr(torchvision.models, model)(pretrained=True)
+    layers = [cnn.conv1, cnn.bn1, cnn.relu, cnn.maxpool]
+    for i in range(model_stage):
+        name = 'layer%d' % (i+1)
+        layers.append(getattr(cnn, name))
+    model = torch.nn.Sequential(*layers)
+    model.cuda()
+    model.eval()
+    return model
+
+def run_batch(cur_batch, model):
+    mean = np.array([0.485, 0.456, 0.406]).reshape(1,3,1,1) #Comes from CLEVR
+    std = np.array([0.229, 0.224, 0.224]).reshape(1,3,1,1) #Comes from CLEVR
+    
+    image_batch = np.concatenate(cur_batch, 0).astype(np.float32)
+    image_batch = (image_batch / 255.0 - mean) / std
+    image_batch = torch.FloatTensor(image_batch).cuda()
+    image_batch = torch.autograd.Variable(image_batch, volatile=True)
+    
+    feats = model(image_batch)
+    feats = feats.data.cpu().clone().numpy()
+    
+    return feats
+    
