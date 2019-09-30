@@ -5,7 +5,9 @@ Created on Thu Sep 26 11:10:30 2019
 
 @author: jacob
 """
-
+import torch
+import torchvision
+import numpy as np
 #Funcs for preprocess questions
 
 """
@@ -91,8 +93,7 @@ def decode(seq_idx, idx_to_token, delim=None, stop_at_end=True):
         else:
             return delim.join(tokens)
         
-##Preprocess funcs for image
-            
+##Preprocess funcs for image            
 def build_model(img_dir, output_h5_file, img_h, img_w, model, model_stage=3,
                 batch_size=64):
     if not hasattr(torchvision.models, model):

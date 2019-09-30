@@ -10,8 +10,7 @@ import os
 import json
 import h5py
 import numpy as np
-from imageio import imread
-
+from scipy.misc import imread, imresize
 
 import torch
 import torchvision
@@ -23,10 +22,10 @@ from Preprocess_funcs import build_model, run_batch
 feature_model = 'resnet101'
 split = 'test'
 max_images = None
-output_h5_file = '../Data/h5py/images_h5py_'+split
+output_h5_file = '../Data/h5py/img_features_h5py_'+split
 model = 'resnet101'
 model_stage = 3
-batch_size = 64
+batch_size = 32
 img_h = img_w = 224
 ##Preprocessing
 
@@ -63,7 +62,6 @@ with h5py.File(output_h5_file, 'w') as f:
     
     for i, (path, idx) in enumerate(input_paths):
         img = imread(path, mode='RGB')
-        print(type(img))
         img = imresize(img, img_size, interp='bicubic')
         img = img.transpose(2,0,1)[None]
         cur_batch.append(img)
@@ -79,11 +77,11 @@ with h5py.File(output_h5_file, 'w') as f:
             i0 = i1
             print('Processed %d / %d images' % (i1, len(input_paths)))
             cur_batch = []
-        if len(cur_batch) > 0:
-            feats = run_batch(cur_batch, model)
-            i1 = i0 + len(cur_batch)
-            feat_dset[i0:i1] = feats
-            print('Processed %d / %d images' % (i1, len(input_paths)))
+    if len(cur_batch) > 0:
+        feats = run_batch(cur_batch, model)
+        i1 = i0 + len(cur_batch)
+        feat_dset[i0:i1] = feats
+        print('Processed %d / %d images' % (i1, len(input_paths)))
 
 
 

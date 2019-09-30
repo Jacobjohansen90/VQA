@@ -8,37 +8,34 @@ Created on Thu Sep 26 15:27:24 2019
 
 import Functions as func
 
-h5_train_questions = '../Data/h5py/h5py_train' 
-h5_train_features = 
-h5_val_questions = '../Data/h5py/h5py_val
-h5_val_features = 
+#%% Datapaths 
+
+h5_train_questions = '../Data/h5py/questions_h5py_train' 
+h5_train_features = '../Data/h5py/img_features_h5py_train'
+h5_val_questions = '../Data/h5py/questions_h5py_val
+h5_val_features = '../Data/h5py/img_features_h5py_val'
 json_vocab = '../Data/vocab/vocab.json'
 
+#%% Load options
+
 load = True #Load previous model
+checkpoint_path = 1 #Automate pick latest
 
+#%% Model params
 
-##Model params
-batch_size = 64
+batch_size = 32
 shuffle = True
-num_train_samples =
-num_val_samples =  
+num_train_samples = None
+num_val_samples = 10000  
 num_workers = 
+shuffle_train_data = True
+model_type = 'PG'
 
-#Layer params
-wordvec_dim = 300
-lstm_hidden_dim = 256
-lstm_layers = 2
-lstm_dropout = 0
+"""
+All network params are set in models.py
+"""
 
-NMN_layers = 2
-NMN_batchnorm = True
-NMN_dim = 128
-NMN_
-
-CNN_
-
-
-##Train loop
+#%%Train loop
 
 vocab = func.load_vocab(json_vocab)
 
@@ -67,5 +64,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     pg_best_state, ee_best_state = None, None
     
     #Set up model
+    if model_type == 'PG' or model_type = 'PG+EE':
+        program_generator, pg_kwargs = 
     
     
