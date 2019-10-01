@@ -8,6 +8,7 @@ Created on Thu Sep 26 11:10:30 2019
 import torch
 import torchvision
 import numpy as np
+import Program_funcs as programs
 #Funcs for preprocess questions
 
 """
@@ -92,6 +93,19 @@ def decode(seq_idx, idx_to_token, delim=None, stop_at_end=True):
             return tokens
         else:
             return delim.join(tokens)
+        
+def program_to_str(program, mode):
+    if mode == 'chain':
+        if not programs.is_chain(program):
+            return None
+        return programs.list_to_str(program)
+    elif mode == 'prefix':
+        program_prefix = programs.list_to_prefix(program)
+        return programs.list_to_str(program_prefix)
+    elif mode == 'postfix':
+        program_postfix = programs.list_to_postfix(program)
+        return programs.list_to_str(program_postfix)
+    return None
         
 ##Preprocess funcs for image            
 def build_model(img_dir, output_h5_file, img_h, img_w, model, model_stage=3,

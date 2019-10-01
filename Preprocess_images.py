@@ -7,13 +7,10 @@ Created on Mon Sep 30 11:31:25 2019
 """
 
 import os
-import json
 import h5py
 import numpy as np
 from scipy.misc import imread, imresize
 
-import torch
-import torchvision
 
 from Preprocess_funcs import build_model, run_batch
 
@@ -27,6 +24,7 @@ model = 'resnet101'
 model_stage = 3
 batch_size = 32
 img_h = img_w = 224
+
 ##Preprocessing
 
 image_dir = '../Data/images/'+split+'/'
