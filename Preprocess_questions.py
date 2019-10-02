@@ -13,9 +13,9 @@ from Preprocess_funcs import tokenize, build_vocab, encode, program_to_str
 ##Args
 
 path = "../Data/questions/"
-questions = "train" #train / val / test
+questions = "test" #train / val / test
 
-input_vocab = '' #Path to json vocab we want to expand (empty '' = create new)
+input_vocab = '../Data/vocab/vocab.json' #Path to json vocab we want to expand (empty '' = create new)
 output_vocab = '../Data/vocab/vocab.json' #Dumb path for new expanded vocab
 expand_vocab = 'y' #Are we expanding already existing vocab? y/n
 
@@ -87,6 +87,7 @@ if input_vocab != '':
                 num_new_words += 1
         print('Expanded vocab with %d new words' % num_new_words)
 
+if output_vocab != '':
     with open(output_vocab, 'w') as f:
         json.dump(vocab, f)
     

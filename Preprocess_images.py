@@ -17,7 +17,7 @@ from Preprocess_funcs import build_model, run_batch
 ##Args
 
 feature_model = 'resnet101'
-split = 'test'
+split = 'train'
 max_images = None
 output_h5_file = '../Data/h5py/img_features_h5py_'+split
 model = 'resnet101'
@@ -68,7 +68,7 @@ with h5py.File(output_h5_file, 'w') as f:
             if feat_dset is None:
                 N = len(input_paths)
                 _, C, H, W = feats.shape
-                feat_dset = f.create_dataset('fetures', (N, C, H, W), 
+                feat_dset = f.create_dataset('features', (N, C, H, W), 
                                              dtype=np.float32)
             i1 = i0 + len(cur_batch)
             feat_dset[i0:i1] = feats

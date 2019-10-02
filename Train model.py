@@ -11,14 +11,12 @@ import json
 import Functions as func
 import torch
 from torch.autograd import Variable
-import torch.nn.functional as F
-import numpy as np
-import h5py
 import argparse
+from DataLoader import ClevrDataLoader
 
 
 """
-All network params are set in models.py
+All network params are set in Models.py
 """
 
 #%% Setup Params
@@ -31,8 +29,8 @@ parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py
 parser.add_argument('--train_features_h5', default='../Data/h5py/img_features_h5py_train')
 parser.add_argument('--val_questions_h5', default='../Data/h5py/questions_h5py_val')
 parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py_val')
-parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') #TODO where should this point
-
+parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
+parser.add_argument('--checkpoint_path', default='../Data/checkpoint.pt')
 #
 parser.add_argument('--feature_dim', default='1024,14,14')
 parser.add_argument('--loader_num_workers', type=int, default=1)
@@ -50,7 +48,7 @@ parser.add_argument('--train_execution_engine', default=1, type=int)
 parser.add_argument('--baseline_train_only_rnn', default=0, type=int)
 
 # Start from an existing checkpoint
-parser.add_argument('--program_generator_start_from', default=None)
+parser.add_argument('--pg_start_from', default=None)
 parser.add_argument('--execution_engine_start_from', default=None)
 parser.add_argument('--baseline_start_from', default=None)
 
@@ -87,13 +85,12 @@ parser.add_argument('--classifier_batchnorm', default=0, type=int)
 parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
-parser.add_argument('--batch_size', default=64, type=int)
+parser.add_argument('--batch_size', default=32, type=int)
 parser.add_argument('--num_iterations', default=100000, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 
 # Output options
-parser.add_argument('--checkpoint_path', default='data/checkpoint.pt')
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
 parser.add_argument('--record_loss_every', type=int, default=1)
 parser.add_argument('--checkpoint_every', default=10000, type=int)
@@ -141,7 +138,6 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         print('Here is the execution engine:')
         print(execution_engine)
         
-    #TODO Implement baseline here?
     
     loss_fn = torch.nn.CrossEntropyLoss().cuda()
     
@@ -150,6 +146,104 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
              'best_val_acc': -1, 'model_t': 0}
     
     t, epoch, reward_moving_avg = 0,0,0
+    
+    func.set_mode('train', [program_generator, execution_engine])
+    
+    print('Train loader has %d samples' % len(train_loader.dataset))
+    print('Validation loader has %d samples' % len(val_loader.dataset))
+    
+    while t < args.num_iterations:
+        epoch += 1
+        print('Starting epoch %d' % epoch)
+        for batch in train_loader:
+            t += 1
+            questions, _, feats, answers, programs, _ = batch
+            questions_var = Variable(questions.cuda())
+            feats_var = Variable(feats.cuda())
+            answers_var = Variable(answers.cuda())
+            if programs[0] is not None:
+                programs_var = Variable(programs.cuda())
+            
+            reward = None
+            if args.model_type == 'PG':
+                pg_optimizer.zero_grad()
+                loss = program_generator(questions_var, programs_var)
+                loss.backward()
+                pg_optimizer.step()
+            elif args.model_type == 'EE':
+                ee_optimizer.zero_grad()
+                scores = execution_engine(feats_var, programs_var)
+                loss = loss_fn(scores, answers_var)
+                loss.backward()
+                ee_optimizer.step()
+            elif args.model_type == 'PG+EE':
+                programs_pred = program_generator.reinforce_sample(questions_var)
+                scores = execution_engine(feats_var, programs_pred)
+                
+                loss = loss_fn(scores, answers_var)
+                _, preds = scores.data.cpu().max(1)
+                raw_reward = (preds == answers).float()
+                reward_moving_avg *= args.reward_decay
+                reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+                centered_reward = raw_reward - reward_moving_avg
+                
+                if args.train_execution_engine == 1:
+                    ee_optimizer.zero_grad()
+                    loss.backward()
+                    ee_optimizer.step()
+                    
+                if args.train_program_generator == 1:
+                    pg_optimizer.zero_grad()
+                    program_generator.reinforce_backward(centered_reward.cuda())
+                    pg_optimizer.step()
+            if t % args.record_loss_every == 0:
+                print(t, loss.data[0])
+                stats['train_losses'].append(loss.data[0])
+                stats['train_losses_ts'].append(t)
+                if reward is not None:
+                    stats['train_rewards'].append(reward)
+                    
+            if t % args.checkpoint_every == 0:
+                print('Calculating accuracy')
+                train_acc = func.check_accuracy(args, program_generator,
+                                                execution_engine, train_loader)
+                print('Train accuracy is: ', train_acc)
+                val_acc = func.check_accuracy(args, program_generator,
+                                              execution_engine, val_loader)
+                print('Val accuracy is: ', val_acc)
+                stats['train_accs'].append(train_acc)
+                stats['val_accs'].append(val_acc)
+                stats['val_accs_ts'].append(t)
+                
+                if val_acc > stats['best_val_acc']:
+                    stats['best_val_acc'] = val_acc
+                    stats['model_t'] = t
+                    best_pg_state = func.get_state(program_generator)
+                    best_ee_state = func.get_state(execution_engine)
+                    
+                checkpoint = {'args': args.__dict__,
+                              'program_generator_kwargs': pg_kwargs,
+                              'program_generator_state': best_pg_state,
+                              'execution_engine_kwargs': ee_kwargs,
+                              'execution_engine_state': best_ee_state,
+                              'vocab': vocab}
+                
+                for k, v in stats.items():
+                    checkpoint[k] = v
+                print('Saving checkpoint to %s' % args.checkpoint_path)
+                torch.save(checkpoint, args.check)
+                del checkpoint['program_generator_state']
+                del checkpoint['execution_engine_state']
+                with open(args.checkpoint_path + '.json', 'w') as f:
+                    json.dump(checkpoint, f)
+                    
+            if t == args.num_iterations:
+                break
+                
+                            
+                
+                
+                
     
         
         
