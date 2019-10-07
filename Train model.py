@@ -20,7 +20,8 @@ All network params are set in Models.py
 """
 
 #%% Setup Params
-#TODO Clean up
+#TODO Clean up params
+#TODO Make checkpoint pathing dynamic
 
 parser = argparse.ArgumentParser()
 
