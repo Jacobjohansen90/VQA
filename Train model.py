@@ -41,15 +41,15 @@ parser.add_argument('--num_val_samples', default=10000, type=int)
 parser.add_argument('--shuffle_train_data', default=True, type=int)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG',
+parser.add_argument('--model_type', default='EE',
         choices=['PG', 'EE', 'PG+EE', 'LSTM', 'CNN+LSTM', 'CNN+LSTM+SA'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 parser.add_argument('--baseline_train_only_rnn', default=0, type=int)
 
 # Start from an existing checkpoint
-parser.add_argument('--pg_start_from', default=None)
-parser.add_argument('--execution_engine_start_from', default=None)
+parser.add_argument('--pg_start_from', default="../Data/checkpoint_PG.pt")
+parser.add_argument('--exec_start_from', default=None)
 parser.add_argument('--baseline_start_from', default=None)
 
 # LSTM options
@@ -86,14 +86,15 @@ parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
 parser.add_argument('--batch_size', default=32, type=int)
-parser.add_argument('--num_iterations', default=100000, type=int)
+parser.add_argument('--num_iterations', default=20000, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 
 # Output options
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
+parser.add_argument('--print_loss_every', type=int, default=50)
 parser.add_argument('--record_loss_every', type=int, default=1)
-parser.add_argument('--checkpoint_every', default=10000, type=int)
+parser.add_argument('--checkpoint_every', default=2500, type=int)
 
 #%%Train loop
 
@@ -127,7 +128,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     #Set up model
     if args.model_type == 'PG' or args.model_type == 'PG+EE':
         program_generator, pg_kwargs = func.get_program_generator(vocab, args)
-        pg_optimizer = torch.optim.Adam(program_generator.parameters(), 
+        pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                         lr=args.learning_rate)
         print('Here is the program generator:')
         print(program_generator)
@@ -151,7 +152,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     print('Train loader has %d samples' % len(train_loader.dataset))
     print('Validation loader has %d samples' % len(val_loader.dataset))
-    
+    _loss = []
     while t < args.num_iterations:
         epoch += 1
         print('Starting epoch %d' % epoch)
@@ -197,12 +198,17 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     program_generator.reinforce_backward(centered_reward.cuda())
                     pg_optimizer.step()
             if t % args.record_loss_every == 0:
-                print(t, loss.data[0])
-                stats['train_losses'].append(loss.data[0])
+                stats['train_losses'].append(loss.data.item())
                 stats['train_losses_ts'].append(t)
                 if reward is not None:
                     stats['train_rewards'].append(reward)
-                    
+
+            _loss.append(loss.item())
+
+            if t % args.print_loss_every == 0:
+                print(t, sum(_loss)/len(_loss))
+                _loss = []
+                
             if t % args.checkpoint_every == 0:
                 print('Calculating accuracy')
                 train_acc = func.check_accuracy(args, program_generator,
@@ -231,7 +237,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 for k, v in stats.items():
                     checkpoint[k] = v
                 print('Saving checkpoint to %s' % args.checkpoint_path)
-                torch.save(checkpoint, args.check)
+                torch.save(checkpoint, args.checkpoint_path)
                 del checkpoint['program_generator_state']
                 del checkpoint['execution_engine_state']
                 with open(args.checkpoint_path + '.json', 'w') as f:

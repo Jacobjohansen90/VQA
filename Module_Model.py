@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from Layers import ResidualBlock, Flatten #TODO implement these funcs in layers.py
+from Layers import ResidualBlock, Flatten 
 import Program_funcs as func
 
 class ConcatBlock(nn.Module):
@@ -34,7 +34,7 @@ class ConcatBlock(nn.Module):
             layers.append(nn.Conv2d(prev_dim, module_dim, kernel_size=3, padding=1))
             if with_batchnorm:
                 layers.append(nn.BatchNorm2d(module_dim))
-            layers(nn.ReLU(inplace=True))
+            layers.append(nn.ReLU(inplace=True))
             prev_dim = module_dim
         return nn.Sequential(*layers)
     
@@ -172,7 +172,7 @@ class ModuleNet(nn.Module):
         used_fn_j = True
         if j < program.size(1):
             fn_idx = program.data[i,j]
-            fn_str = self.vocab['program_idx_to_token'][fn_idx]
+            fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
         else:
             used_fn_j = False
             fn_str = 'scene'
@@ -184,7 +184,7 @@ class ModuleNet(nn.Module):
         if used_fn_j:
             self.used_fns[i,j] = 1
         j += 1
-        module = self.function_modules_num_inputs[fn_str]
+        module = self.function_modules[fn_str]
         if fn_str == 'scene':
             module_inputs = [feats[i:i+1]]
         else:
@@ -197,10 +197,9 @@ class ModuleNet(nn.Module):
         return module_output, j
     
     def forward_modules_ints(self, feats, program):
-        
         N = feats.size(0)
         finale_module_outputs = []
-        self.used_fns = torch.Tensor(program.sizer()).fill_(0)
+        self.used_fns = torch.Tensor(program.size()).fill_(0)
         for i in range(N):
             cur_output, _ = self.forward_modules_ints_helper(feats, program, i, 0)
             finale_module_outputs.append(cur_output)
@@ -213,10 +212,10 @@ class ModuleNet(nn.Module):
         assert N == len(program)
         
         feats = self.stem(x)
-        
+               
         if type(program) is list or type(program) is tuple:
             final_module_outputs = self.forward_modules_json(feats, program)
-        elif type(program) is Variable and program.dim() == 2:
+        elif type(program) is torch.Tensor and program.dim() == 2:
             final_module_outputs = self.forward_modules_ints(feats, program)
         else:
             raise ValueError('Unregonized program format')

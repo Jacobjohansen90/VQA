@@ -9,6 +9,7 @@ Created on Thu Sep 26 09:18:01 2019
 import json
 import torch
 from LSTM_Model import Seq2Seq
+from Module_Model import ModuleNet
 from torch.autograd import Variable
 from Preprocess_funcs import decode
 
@@ -66,7 +67,7 @@ def get_program_generator(vocab, args):
     return pg, kwargs
 
 #Execution Engine
-def load_execuion_engine(path, verbose=True):
+def load_execution_engine(path, verbose=True):
     checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
     kwargs = checkpoint['program_generator_kwargs']
     state = checkpoint['program_generator_state']
@@ -118,19 +119,20 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     num_correct, num_samples = 0,0
     for batch in loader:
         questions, _, feats, answers, programs, _ = batch
-        
-        questions_var = Variable(questions.cuda(), volatile=True)
-        feats_var = Variable(feats.cuda(), volatile=True)
-        answers_var = Variable(answers.cuda(), volatile=True)
+        with torch.no_grad():
+            questions_var = Variable(questions.cuda())
+            feats_var = Variable(feats.cuda())
+        #answers_var = Variable(answers.cuda(), volatile=True)
         if programs[0] is not None:
-            programs_var = Variable(programs.cuda(), volatile=True)
+            with torch.no_grad():
+                programs_var = Variable(programs.cuda())
         
         scores = None
         if args.model_type == 'PG':
             vocab = load_vocab(args.vocab_json)
             for i in range(questions.size(0)):
-                program_pred = program_generator.sample(Variable(questions[i:i+1].cuda(),
-                                                                 volatile=True))
+                with torch.no_grad():
+                    program_pred = program_generator.sample(Variable(questions[i:i+1].cuda()))
                 program_pred_str = decode(program_pred, vocab['program_idx_to_token'])
                 program_str = decode(programs[i], vocab['program_idx_to_token'])
                 if program_pred_str == program_str:

@@ -46,13 +46,13 @@ class Seq2Seq(nn.Module):
         
     def get_dims(self, x=None, y=None):
         V_in = self.encoder_embed.num_embeddings
-        V_out = self.decocer_embed.num_embeddings
+        V_out = self.decoder_embed.num_embeddings
         D = self.encoder_embed.embedding_dim
         H = self.encoder_LSTM.hidden_size
         L = self.encoder_LSTM.num_layers
         
         N = x.size(0) if x is not None else None
-        N = y.size(0) if N is not None and y is not None else N
+        N = y.size(0) if N is None and y is not None else N
         T_in = x.size(1) if x is not None else None
         T_out = y.size(1) if y is not None else None
         
@@ -72,10 +72,10 @@ class Seq2Seq(nn.Module):
         x[x.data == self.NULL] = replace
         return x, Variable(idx)
     
-    def logical_or(x, y):
+    def logical_or(self, x, y):
         return (x+y).clamp_(0,1)
     
-    def logical_not(x):
+    def logical_not(self, x):
         return x == 0
     
     def encoder(self, x):
@@ -88,7 +88,7 @@ class Seq2Seq(nn.Module):
         out, _ = self.encoder_LSTM(embed, (h0, c0))
         
         #Gets the hidden state for the last non NULL value
-        idx = idx.view(N, 1, 1).expand(H, 1, H)
+        idx = idx.view(N, 1, 1).expand(N, 1, H)
         return out.gather(1, idx).view(N, H)
     
     def decoder(self, encoded, y, h0=None, c0=None):
@@ -102,7 +102,7 @@ class Seq2Seq(nn.Module):
         if h0 is None:
             h0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
         if c0 is None:
-            c0 = Variable(torch.zeros(L, N, H).type_as(encoded.dat))
+            c0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
         rnn_output, (ht, ct) = self.decoder_LSTM(rnn_input, (h0, c0))
         
         rnn_output_2d = rnn_output.contiguous().view(N*T_out, H)
@@ -119,26 +119,93 @@ class Seq2Seq(nn.Module):
         h, c = None, None
         self.multinomial_outputs = []
         self.multinomial_probs = []
+        self.multinomial_m = []
         for t in range(T):
             #The logprobs are N x 1 x V
             logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
             logprobs = logprobs / temperature
-            probs = F.softmax(logprobs.view(N, -1)) #Makes logprobs N x V
+            probs = F.softmax(logprobs.view(N, -1), dim=1) #Makes logprobs N x V
+            m = torch.distributions.Categorical(probs)
             if argmax:
                 _, cur_output = probs.max(1)
             else:
-                cur_output = probs.multinomial() #Now N x 1
+                cur_output = m.sample() #Now N
+                #cur_output = probs.multinomial(1) #Now N x 1
             self.multinomial_outputs.append(cur_output)
             self.multinomial_probs.append(probs)
+            self.multinomial_m.append(m)
+            #cur_output_data = cur_output.data.cpu().squeeze(1)
             cur_output_data = cur_output.data.cpu()
             not_done = self.logical_not(done)
             y[:, t][not_done] = cur_output_data[not_done]
-            done = self.logical_or(done, cur_output_data.cpu()==self.END)
-            cur_input = cur_output
+            done = self.logical_or(done, (cur_output_data.cpu()==self.END).type(torch.uint8))
+            cur_input = cur_output.unsqueeze(1)
             if done.sum() == N:
                 break
         return Variable(y.type_as(x.data))
     
+    def compute_loss(self, output_logprobs, y):
+        """
+        Assumes first element of y is start token.
+        Assumes end of y is padded with null tokens until T_out length
+        """
+        self.multinomial_outputs = None
+        V_in, V_out, D, H, L, N, T_in, T_out = self.get_dims(y=y)
+        mask = y.data != self.NULL
+        y_mask = Variable(torch.Tensor(N, T_out).fill_(0).type_as(mask))
+        y_mask[:, 1:] = mask[:, 1:]
+        y_masked = y[y_mask]
+        out_mask = Variable(torch.Tensor(N, T_out).fill_(0).type_as(mask))
+        out_mask[:,:-1] = mask[:,1:]
+        out_mask = out_mask.view(N, T_out, 1).expand(N, T_out, V_out)
+        out_masked = output_logprobs[out_mask].view(-1, V_out)
+        loss = F.cross_entropy(out_masked, y_masked)
+        return loss
+    
+    def forward(self, x, y):
+        encoded = self.encoder(x)
+        output_logprobs, _, _ = self.decoder(encoded, y)
+        loss = self.compute_loss(output_logprobs, y)
+        return loss
+    
+    def reinforce_backward(self, reward, output_mask=None):
+        assert self.multinomial_outputs is not None, 'Must call reinforce sample first'
+#        grad_output = []
+        
+        def gen_hook(mask):
+            def hook(grad):
+                return grad * mask.contiguous().view(-1,1).expand_as(grad)
+            return hook
+        
+        if output_mask is not None:
+            for t, probs in enumerate(self.multinomial_probs):
+                mask = Variable(output_mask[:, t])
+                probs.register_hook(gen_hook(mask))
+        
+#        loss = 0        
+        for i in range(len(self.multinomial_outputs)):
+            sampled_output = self.multinomial_outputs[i]
+            m = self.multinomial_m[i]
+            loss = -(m.log_prob(sampled_output)*reward).sum()
+            loss.backward(retain_graph=True)
+            #TODO Should we do backwards in loop, or after?
+            #sampled_output.reinforce(reward)
+            #grad_output.append(None)
+#        torch.autograd.backward(self.multinomial_outputs, grad_output, retain_variables=True)
+        
+    def sample(self, x, max_length=50):
+        self.multinomial_outputs = None
+        encoded = self.encoder(x)
+        y = [self.START]
+        h0, c0 = None, None
+        while True:
+            cur_y = Variable(torch.LongTensor([y[-1]]).type_as(x.data).view(1,1))
+            logprobs, h0, c0 = self.decoder(encoded, cur_y, h0, c0)
+            _, next_y = logprobs.data.max(2)
+            y.append(next_y.item())
+            if len(y) >= max_length or y[-1] == self.END:
+                break
+        return y
 
             
         

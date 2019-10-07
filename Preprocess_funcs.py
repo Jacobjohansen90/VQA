@@ -86,13 +86,16 @@ def encode(seq_tokens, token_to_idx, allow_unk=False):
 def decode(seq_idx, idx_to_token, delim=None, stop_at_end=True):
     tokens = []
     for idx in seq_idx:
-        tokens.append(idx_to_token[idx])
+        try:
+            tokens.append(idx_to_token[idx.item()])
+        except:
+            tokens.append(idx_to_token[idx])
         if stop_at_end and tokens[-1] == '<END>':
             break
-        if delim is None:
-            return tokens
-        else:
-            return delim.join(tokens)
+    if delim is None:
+        return tokens
+    else:
+        return delim.join(tokens)
         
 def program_to_str(program, mode):
     if mode == 'chain':

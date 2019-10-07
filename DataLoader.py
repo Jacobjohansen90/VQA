@@ -66,7 +66,7 @@ class ClevrDataset(Dataset):
         if program_seq is not None:
             program_json_seq = []
             for fn_idx in program_seq:
-                fn_str = self.vocab['program_idx_to_token'][fn_idx]
+                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
                 if fn_str == '<START>' or fn_str == '<END>':
                     continue
                 fn = P.str_to_function(fn_str)
@@ -129,7 +129,7 @@ class ClevrDataLoader(DataLoader):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
     
-    def clevr_collate(batch):
+    def clevr_collate(self, batch):
         transposed = list(zip(*batch))
         question_batch = default_collate(transposed[0])
         image_batch = transposed[1]

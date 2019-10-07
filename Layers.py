@@ -27,17 +27,17 @@ class ResidualBlock(nn.Module):
         else:
             self.proj = nn.Conv2d(in_dim, out_dim, kernel_size=1)
             
-        def forward(self, x):
-            if self.with_batchnorm:
-                out = F.relu(self.bn1(self.conv1(x)))
-            else:
-                out = self.conv2(F.relu(self.conv1(x)))
-            res = x if self.proj is None else self.proj(x)
-            if self.with_residual:
-                out = F.relu(res + out)
-            else:
-                out = F.relu(out)
-            return out
+    def forward(self, x):
+        if self.with_batchnorm:
+            out = F.relu(self.bn1(self.conv1(x)))
+        else:
+            out = self.conv2(F.relu(self.conv1(x)))
+        res = x if self.proj is None else self.proj(x)
+        if self.with_residual:
+            out = F.relu(res + out)
+        else:
+            out = F.relu(out)
+        return out
         
    
 class Flatten(nn.Module):
