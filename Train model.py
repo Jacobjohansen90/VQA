@@ -43,15 +43,13 @@ parser.add_argument('--shuffle_train_data', default=True, type=int)
 
 # What type of model to use and which parts to train
 parser.add_argument('--model_type', default='EE',
-        choices=['PG', 'EE', 'PG+EE', 'LSTM', 'CNN+LSTM', 'CNN+LSTM+SA'])
+        choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
-parser.add_argument('--baseline_train_only_rnn', default=0, type=int)
 
 # Start from an existing checkpoint
 parser.add_argument('--pg_start_from', default="../Data/checkpoint_PG.pt")
 parser.add_argument('--exec_start_from', default=None)
-parser.add_argument('--baseline_start_from', default=None)
 
 # LSTM options
 parser.add_argument('--rnn_wordvec_dim', default=300, type=int)
@@ -65,13 +63,6 @@ parser.add_argument('--module_stem_batchnorm', default=0, type=int)
 parser.add_argument('--module_dim', default=128, type=int)
 parser.add_argument('--module_residual', default=1, type=int)
 parser.add_argument('--module_batchnorm', default=0, type=int)
-
-# CNN options (for baselines)
-parser.add_argument('--cnn_res_block_dim', default=128, type=int)
-parser.add_argument('--cnn_num_res_blocks', default=0, type=int)
-parser.add_argument('--cnn_proj_dim', default=512, type=int)
-parser.add_argument('--cnn_pooling', default='maxpool2',
-        choices=['none', 'maxpool2'])
 
 # Stacked-Attention options
 parser.add_argument('--stacked_attn_dim', default=512, type=int)

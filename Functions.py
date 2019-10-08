@@ -51,7 +51,7 @@ def get_program_generator(vocab, args):
         pg, kwargs = load_program_generator(args.pg_start_from)
         cur_vocab_size = pg.encoder_embed.weight.size(0)
         if cur_vocab_size != len(args.vocab['question_token_to_idx']):
-            print('Expanding vocab size og program generator')
+            print('Expanding vocab size and program generator')
             pg.expand_encoder_vocab(args.vocab)
             kwargs['encoder_vocab_size'] = len(vocab['question_token_to_idx'])
     else:
