@@ -145,5 +145,3 @@ class ClevrDataLoader(DataLoader):
         program_struct_batch = transposed[5]
         return [question_batch, image_batch, feat_batch, answer_batch, program_seq_batch, program_struct_batch]
         
-        
-                

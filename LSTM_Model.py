@@ -25,6 +25,7 @@ class Seq2Seq(nn.Module):
                  null_token=0,
                  start_token=1,
                  end_token=2,
+                 max_length=30,
                  encoder_embed=None):
         super(Seq2Seq, self).__init__()
         self.encoder_embed = nn.Embedding(encoder_vocab_size, wordvec_dim)
@@ -39,6 +40,7 @@ class Seq2Seq(nn.Module):
         self.START = start_token
         self.END = end_token
         self.multinomial_outputs = None
+        self.max_length = max_length
         
     def expand_encoder_vocab(self, token_to_idx, word2vec=None, std=0.01):
         expand_embedding_vocab(self.encoder_embed, token_to_idx,
@@ -110,8 +112,50 @@ class Seq2Seq(nn.Module):
         
         return output_logprobs, ht, ct
     
-    def reinforce_sample(self, x, max_length=30, temperature=1.0, argmax=False):
-        N, T = x.size(0), max_length
+    def reinforce_sample_MAPO(self, x, bloom_filter, temperature=1.0, 
+                              argmax=False):
+        N, T = x.size(0), self.max_length
+        assert N == 1
+        encoded = self.encoder(x)
+        y = torch.LongTensor(N, T).fill(self.NULL)
+        cur_input = Variable(x.data.new(N,1).fill_(self.START))
+        h, c = None, None
+        self.multinomial_outputs = []
+        self.multinomial_probs = []
+        self.multinomial_m = []
+        t = 0
+        while t < T-1:
+            logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
+            logprobs = logprobs / temperature
+            probs = F.softmax(logprobs.view(N, -1), dim=1)
+            m = torch.distributions.Categorical(probs)
+            if argmax:
+                _, cur_input = probs.max(1)
+            else:
+                cur_output = m.sample()
+            y[:, t] = cur_output.data.cpu()
+            prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
+            while bloom_filter.check(prg_tmp) and sum(probs) > 0:
+                #TODO: Check that we do not hang here
+                probs[cur_output] = 0
+                m = torch.distributions.Categorical(probs)
+                cur_output = m.sample()
+                y[:, t] = cur_output.data.cpu()
+                prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
+            if bloom_filter.check(prg_tmp) == False:
+                t += 1
+                cur_input = cur_output.unsqueeze(1)
+            else:
+                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
+                bloom_filter.add(prg_tmp)
+                break
+            if cur_output.data.cpu() == self.END:
+                bloom_filter.add(prg_tmp)
+                break
+        return Variable(y.type_as(x.data))
+                
+    def reinforce_sample(self, x, temperature=1.0, argmax=False):
+        N, T = x.size(0), self.max_length
         encoded = self.encoder(x)
         y = torch.LongTensor(N, T).fill_(self.NULL)
         done = torch.ByteTensor(N).fill_(0)
@@ -130,11 +174,9 @@ class Seq2Seq(nn.Module):
                 _, cur_output = probs.max(1)
             else:
                 cur_output = m.sample() #Now N
-                #cur_output = probs.multinomial(1) #Now N x 1
             self.multinomial_outputs.append(cur_output)
             self.multinomial_probs.append(probs)
             self.multinomial_m.append(m)
-            #cur_output_data = cur_output.data.cpu().squeeze(1)
             cur_output_data = cur_output.data.cpu()
             not_done = self.logical_not(done)
             y[:, t][not_done] = cur_output_data[not_done]
@@ -170,7 +212,6 @@ class Seq2Seq(nn.Module):
     
     def reinforce_backward(self, reward, output_mask=None):
         assert self.multinomial_outputs is not None, 'Must call reinforce sample first'
-#        grad_output = []
         
         def gen_hook(mask):
             def hook(grad):
@@ -182,17 +223,12 @@ class Seq2Seq(nn.Module):
                 mask = Variable(output_mask[:, t])
                 probs.register_hook(gen_hook(mask))
         
-#        loss = 0        
         for i in range(len(self.multinomial_outputs)):
             sampled_output = self.multinomial_outputs[i]
             m = self.multinomial_m[i]
             loss = -(m.log_prob(sampled_output)*reward).sum()
             loss.backward(retain_graph=True)
-            #TODO Should we do backwards in loop, or after?
-            #sampled_output.reinforce(reward)
-            #grad_output.append(None)
-#        torch.autograd.backward(self.multinomial_outputs, grad_output, retain_variables=True)
-        
+            
     def sample(self, x, max_length=50):
         self.multinomial_outputs = None
         encoded = self.encoder(x)

@@ -12,7 +12,9 @@ from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
 from torch.autograd import Variable
 from Preprocess_funcs import decode
-
+import numpy as np
+from probables import CountingBloomFilter as CBF
+#Vocab funcs
 def invert_dict(d):
     return {v: k for k, v in d.items()}
 
@@ -69,9 +71,9 @@ def get_program_generator(vocab, args):
 #Execution Engine
 def load_execution_engine(path, verbose=True):
     checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
-    kwargs = checkpoint['program_generator_kwargs']
-    state = checkpoint['program_generator_state']
-    model = Seq2Seq(**kwargs)
+    kwargs = checkpoint['execution_engine_kwargs']
+    state = checkpoint['execution_engine_state']
+    model = ModuleNet(**kwargs)
     model.load_state_dict(state)
     return model, kwargs
 
@@ -96,6 +98,7 @@ def get_execution_engine(vocab, args):
     ee.train()
     return ee, kwargs
 
+#Model funcs
 def set_mode(mode, models):
     assert mode in ['train', 'eval']
     for m in models:
@@ -158,5 +161,41 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     return acc
-            
+
+#Bloom Filter Functions
+class BloomFilter:
+    def __init__(self, est_ele=10**6, false_pos=0.01, load_path=None,
+                 percentage=0.05):
+        self.bf = CBF(est_elements=est_ele, false_positive_rate=false_pos,
+                      filepath=load_path)
+        self.random_bf = CBF(est_elements=est_ele, false_positive_rate=false_pos,
+                             filepath=load_path)
+        self.percentage = percentage
+    def check(self, string):
+        if self.bf.check(string) == 0:
+            return False
+        else:
+            return True
+
+    def add(self, string):
+        self.bf.add(string)
+        if np.random.uniform() > self.percentage:
+            self.random_bf.add(string)
+    
+    def del_random(self):
+        self.bf = self.bf.intersection(self.random_bf)
+
+    def save(self, save_path):
+        self.bf.export(save_path)
+        print('Bloom filter saved to: %s' % save_path)
+    
+#MAPO Functions
+        
+def load_vocab_MAPO(args):
+    path = args.execution_engine
+    return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
+
+    
+    
+
             

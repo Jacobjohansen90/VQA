@@ -5,7 +5,6 @@ Created on Wed Oct  2 12:28:42 2019
 
 @author: jacob
 """
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 

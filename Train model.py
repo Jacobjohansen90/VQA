@@ -13,17 +13,50 @@ import torch
 from torch.autograd import Variable
 import argparse
 from DataLoader import ClevrDataLoader
-
+import torch.multiprocessing as mp
+from MAPO_workers import MAPO
 
 """
-All network params are set in Models.py
+Some network params are set in LSTM_Model.py and Module_Net.py
 """
 
 #%% Setup Params
-#TODO Clean up params
 #TODO Make checkpoint pathing dynamic
 
 parser = argparse.ArgumentParser()
+
+# Start from an existing checkpoint
+parser.add_argument('--pg_start_from', default=None)
+parser.add_argument('--exec_start_from', default=None)
+parser.add_argument('--mapo', default=True)
+
+# What type of model to use and which parts to train
+parser.add_argument('--model_type', default='PG+EE',
+        choices=['PG', 'EE', 'PG+EE'])
+parser.add_argument('--train_program_generator', default=1, type=int)
+parser.add_argument('--train_execution_engine', default=1, type=int)
+
+#Samples and shuffeling
+parser.add_argument('--num_train_samples', default=None, type=int)
+parser.add_argument('--num_val_samples', default=10000, type=int)
+parser.add_argument('--shuffle_train_data', default=True, type=int)
+
+#Bloom Filter
+parser.add_argument('--bloom_est_elements', default=10**6, type=int)
+parser.add_argument('--bloom_false_positive_rate', default=0.01, type=float)
+parser.add_argument('--bloom_load_path', default=None)
+parser.add_argument('--bloom_percentage', default=0.05, type=float)
+
+#MAPO
+parser.add_argument('--MAPO_pg', default='../Models/pg_best.pt')
+parser.add_argument('--MAPO_EE', default='../Models/ee_best.pt')
+parser.add_argument('--MAPO_use_GPU', default=0, type=int)
+parser.add_argument('--MAPO_sample_argmax', default=0, type=int)
+parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
+parser.add_argument('--MAPO_train_pg', default=True)
+parser.add_argument('--MAPO_train_ee', default=False)
+
+
 
 #Datapaths
 parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_train')
@@ -32,30 +65,17 @@ parser.add_argument('--val_questions_h5', default='../Data/h5py/questions_h5py_v
 parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py_val')
 parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
 parser.add_argument('--checkpoint_path', default='../Data/checkpoint.pt')
-#
+
+#Dataloader params
 parser.add_argument('--feature_dim', default='1024,14,14')
 parser.add_argument('--loader_num_workers', type=int, default=1)
-
-#Samples and shuffeling
-parser.add_argument('--num_train_samples', default=None, type=int)
-parser.add_argument('--num_val_samples', default=10000, type=int)
-parser.add_argument('--shuffle_train_data', default=True, type=int)
-
-# What type of model to use and which parts to train
-parser.add_argument('--model_type', default='EE',
-        choices=['PG', 'EE', 'PG+EE'])
-parser.add_argument('--train_program_generator', default=1, type=int)
-parser.add_argument('--train_execution_engine', default=1, type=int)
-
-# Start from an existing checkpoint
-parser.add_argument('--pg_start_from', default="../Data/checkpoint_PG.pt")
-parser.add_argument('--exec_start_from', default=None)
 
 # LSTM options
 parser.add_argument('--rnn_wordvec_dim', default=300, type=int)
 parser.add_argument('--rnn_hidden_dim', default=256, type=int)
 parser.add_argument('--rnn_num_layers', default=2, type=int)
 parser.add_argument('--rnn_dropout', default=0, type=float)
+parser.add_argument('--length_output', default=30, type=int)
 
 # Module net options
 parser.add_argument('--module_stem_num_layers', default=2, type=int)
@@ -81,6 +101,7 @@ parser.add_argument('--batch_size', default=32, type=int)
 parser.add_argument('--num_iterations', default=20000, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
+parser.add_argument('--temperature', default=1.0, type=float)
 
 # Output options
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
@@ -89,9 +110,14 @@ parser.add_argument('--record_loss_every', type=int, default=1)
 parser.add_argument('--checkpoint_every', default=2500, type=int)
 
 #%%Train loop
-
 args = parser.parse_args()
 vocab = func.load_vocab(args.vocab_json)
+if args.mapo:
+    bf = func.BloomFilter(est_ele=args.bloom_est_elements,
+                      false_pos=args.bloom_false_positive_rate,
+                      load_path=args.bloom_load_path,
+                      percentage=args.bloom_percentage)
+    cpu_count = mp.cpu_count()
 
 train_loader_kwargs = {
         'question_h5': args.train_questions_h5,
@@ -112,6 +138,7 @@ val_loader_kwargs = {
 
 with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
      ClevrDataLoader(**val_loader_kwargs) as val_loader:
+
     program_generator, pg_kwargs, pg_optimizer = None, None, None
     execution_engine, ee_kwargs, ee_optimizer = None, None, None
     
@@ -144,6 +171,17 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     print('Train loader has %d samples' % len(train_loader.dataset))
     print('Validation loader has %d samples' % len(val_loader.dataset))
+    if args.mapo:
+        print('MAPO will use %d CPUs' % cpu_count)
+        execution_engine.share_memory()
+        program_generator.share_memory()
+        processes = []
+        que = mp.Queue()
+        for cpu in range(cpu_count):
+            p = mp.Process(target=MAPO, args=(args, program_generator,
+                                              execution_engine, vocab, 
+                                              bf, que))
+            p.start()            
     _loss = []
     while t < args.num_iterations:
         epoch += 1
@@ -156,7 +194,6 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             answers_var = Variable(answers.cuda())
             if programs[0] is not None:
                 programs_var = Variable(programs.cuda())
-            
             reward = None
             if args.model_type == 'PG':
                 pg_optimizer.zero_grad()
@@ -170,9 +207,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 loss.backward()
                 ee_optimizer.step()
             elif args.model_type == 'PG+EE':
-                programs_pred = program_generator.reinforce_sample(questions_var)
+                programs_pred = program_generator.reinforce_sample(questions_var)   
                 scores = execution_engine(feats_var, programs_pred)
-                
                 loss = loss_fn(scores, answers_var)
                 _, preds = scores.data.cpu().max(1)
                 raw_reward = (preds == answers).float()
@@ -189,6 +225,27 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     pg_optimizer.zero_grad()
                     program_generator.reinforce_backward(centered_reward.cuda())
                     pg_optimizer.step()
+                
+                if args.mapo:
+                    for _ in range(que.qsize()):
+                        feats_var, program_pred = que.get_nowait()
+                        scores = execution_engine(feats_var, programs_pred)
+                        _, preds = scores.data.cpu().max(1)
+                        raw_reward = (preds == answers).float()
+                        reward_moving_avg *= args.reward_decay
+                        reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+                        centered_reward = raw_reward - reward_moving_avg
+                
+                    if args.MAPO_train_ee == 1:
+                        ee_optimizer.zero_grad()
+                        loss.backward()
+                        ee_optimizer.step()
+                    
+                    if args.MAPO_train_pg == 1:
+                        pg_optimizer.zero_grad()
+                        program_generator.reinforce_backward(centered_reward.cuda())
+                        pg_optimizer.step()
+                
             if t % args.record_loss_every == 0:
                 stats['train_losses'].append(loss.data.item())
                 stats['train_losses_ts'].append(t)
