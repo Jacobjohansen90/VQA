@@ -6,11 +6,10 @@ Created on Thu Oct 10 11:32:31 2019
 @author: jacob
 """
 
-import argparse
 import torch
 from torch.autograd import Variable
 from DataLoader import ClevrDataLoader
-parser = argparse.ArgumentParser()
+
 
 #%% Options
 
@@ -26,20 +25,21 @@ def MAPO(args, pg, ee, vocab, bloom_filter, que):
         if args.MAPO_use_GPU == 1:
             dtype = torch.cuda.FloatTensor
         pg.type(dtype)
-        pg.eval()
         ee.type(dtype)
-        ee.eval()
    
         for batch in loader:
-            for i in args.batch_size:
-                question, _, feats, answer, _, _ = [item[i].unsqueeze(0) for item in batch]
+            for i in range(args.batch_size):
+                question, _, feats, answer, _, _ = [item[i] for item in batch]
+                question = question.unsqueeze(0)
+                feats = feats.unsqueeze(0)
+                answer = answer.unsqueeze(0)
                 with torch.no_grad():
                     question_var = Variable(question.type(dtype).long())
                     feats_var = Variable(feats.type(dtype))
                 
-                program_pred = pg.reinforce_sample_MAPO(question_var,
+                program_pred = pg.reinforce_sample_MAPO(question_var, bloom_filter,
                                                    temperature=args.temperature,
-                                                   argmax=args.sample_argmax)
+                                                   argmax=args.MAPO_sample_argmax)
                 
                 scores = ee(feats_var, program_pred)
                 _, pred = scores.data.cpu().max(1)

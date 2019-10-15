@@ -52,9 +52,9 @@ def get_program_generator(vocab, args):
     if args.pg_start_from is not None:
         pg, kwargs = load_program_generator(args.pg_start_from)
         cur_vocab_size = pg.encoder_embed.weight.size(0)
-        if cur_vocab_size != len(args.vocab['question_token_to_idx']):
+        if cur_vocab_size != len(vocab['question_token_to_idx']):
             print('Expanding vocab size and program generator')
-            pg.expand_encoder_vocab(args.vocab)
+            pg.expand_encoder_vocab(vocab)
             kwargs['encoder_vocab_size'] = len(vocab['question_token_to_idx'])
     else:
         kwargs = {'encoder_vocab_size': len(vocab['question_token_to_idx']),
@@ -160,6 +160,7 @@ def check_accuracy(args, program_generator, execution_engine, loader):
         
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
+    acc = round(acc, 4)
     return acc
 
 #Bloom Filter Functions

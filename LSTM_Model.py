@@ -117,7 +117,7 @@ class Seq2Seq(nn.Module):
         N, T = x.size(0), self.max_length
         assert N == 1
         encoded = self.encoder(x)
-        y = torch.LongTensor(N, T).fill(self.NULL)
+        y = torch.LongTensor(N, T).fill_(self.NULL)
         cur_input = Variable(x.data.new(N,1).fill_(self.START))
         h, c = None, None
         self.multinomial_outputs = []

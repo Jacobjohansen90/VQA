@@ -19,25 +19,31 @@ from MAPO_workers import MAPO
 """
 Some network params are set in LSTM_Model.py and Module_Net.py
 """
+#TODO Make checkpoint pathing dynamic
+#TODO Add weight update for MAPO workers?
+
 
 #%% Setup Params
-#TODO Make checkpoint pathing dynamic
 
 parser = argparse.ArgumentParser()
 
 # Start from an existing checkpoint
 parser.add_argument('--pg_start_from', default=None)
 parser.add_argument('--exec_start_from', default=None)
-parser.add_argument('--mapo', default=True)
+parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG+EE',
+parser.add_argument('--model_type', default='PG',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 
+#Training length
+parser.add_argument('--num_iterations', default=20000, type=int)
+parser.add_argument('--epochs', default=0, type=int) #If 0 we use num_iterations to determine training length
+
 #Samples and shuffeling
-parser.add_argument('--num_train_samples', default=None, type=int)
+parser.add_argument('--num_train_samples', default=18000, type=int)
 parser.add_argument('--num_val_samples', default=10000, type=int)
 parser.add_argument('--shuffle_train_data', default=True, type=int)
 
@@ -56,11 +62,9 @@ parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
 parser.add_argument('--MAPO_train_pg', default=True)
 parser.add_argument('--MAPO_train_ee', default=False)
 
-
-
 #Datapaths
-parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_train')
-parser.add_argument('--train_features_h5', default='../Data/h5py/img_features_h5py_train')
+parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_val')
+parser.add_argument('--train_features_h5', default='../Data/h5py/img_features_h5py_val')
 parser.add_argument('--val_questions_h5', default='../Data/h5py/questions_h5py_val')
 parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py_val')
 parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
@@ -98,16 +102,15 @@ parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
 parser.add_argument('--batch_size', default=32, type=int)
-parser.add_argument('--num_iterations', default=20000, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 parser.add_argument('--temperature', default=1.0, type=float)
 
 # Output options
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
-parser.add_argument('--print_loss_every', type=int, default=50)
+parser.add_argument('--print_loss_every', type=int, default=500)
 parser.add_argument('--record_loss_every', type=int, default=1)
-parser.add_argument('--checkpoint_every', default=2500, type=int)
+parser.add_argument('--checkpoint_every', default=1000, type=int)
 
 #%%Train loop
 args = parser.parse_args()
@@ -118,6 +121,8 @@ if args.mapo:
                       load_path=args.bloom_load_path,
                       percentage=args.bloom_percentage)
     cpu_count = mp.cpu_count()
+    if args.model_type != 'PG+EE':
+        raise KeyError("MAPO can only train with both PG and EE. Change model_type")
 
 train_loader_kwargs = {
         'question_h5': args.train_questions_h5,
@@ -167,23 +172,39 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     t, epoch, reward_moving_avg = 0,0,0
     
-    func.set_mode('train', [program_generator, execution_engine])
     
     print('Train loader has %d samples' % len(train_loader.dataset))
     print('Validation loader has %d samples' % len(val_loader.dataset))
     if args.mapo:
-        print('MAPO will use %d CPUs' % cpu_count)
-        execution_engine.share_memory()
-        program_generator.share_memory()
-        processes = []
-        que = mp.Queue()
-        for cpu in range(cpu_count):
-            p = mp.Process(target=MAPO, args=(args, program_generator,
-                                              execution_engine, vocab, 
-                                              bf, que))
-            p.start()            
+        if args.MAPO_use_gpu == 0:
+            print('MAPO will use %d CPUs' % cpu_count)
+            func.set_mode('eval', [program_generator, execution_engine])
+            execution_engine.share_memory()
+            program_generator.share_memory()
+            processes = []
+            que = mp.Queue()
+            for cpu in range(cpu_count):
+                p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
+                                                  execution_engine.cpu(), vocab, 
+                                                  bf, que))
+                p.start()    
+                processes.append(p)
+        else:
+            raise KeyError('Not implemented')
+            #TODO: Implement GPU MAPO
     _loss = []
-    while t < args.num_iterations:
+    func.set_mode('train', [program_generator, execution_engine])
+    while True:
+        if epoch == args.epochs and args.epochs != 0:
+            if args.mapo:
+                for p in processes:
+                    p.terminate()
+            break
+        elif t == args.num_iterations and args.epochs == 0:
+            if args.mapo:
+                for p in processes:
+                    p.terminate()
+            break
         epoch += 1
         print('Starting epoch %d' % epoch)
         for batch in train_loader:
@@ -226,10 +247,10 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     program_generator.reinforce_backward(centered_reward.cuda())
                     pg_optimizer.step()
                 
-                if args.mapo:
+                if args.mapo and que.qsize() != 0:
                     for _ in range(que.qsize()):
                         feats_var, program_pred = que.get_nowait()
-                        scores = execution_engine(feats_var, programs_pred)
+                        scores = execution_engine(feats_var, program_pred)
                         _, preds = scores.data.cpu().max(1)
                         raw_reward = (preds == answers).float()
                         reward_moving_avg *= args.reward_decay
@@ -245,7 +266,11 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         pg_optimizer.zero_grad()
                         program_generator.reinforce_backward(centered_reward.cuda())
                         pg_optimizer.step()
-                
+                    
+                    #Release memory again
+                    del feats_var
+                    del program_pred
+
             if t % args.record_loss_every == 0:
                 stats['train_losses'].append(loss.data.item())
                 stats['train_losses_ts'].append(t)
@@ -257,7 +282,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             if t % args.print_loss_every == 0:
                 print(t, sum(_loss)/len(_loss))
                 _loss = []
-                
+            
             if t % args.checkpoint_every == 0:
                 print('Calculating accuracy')
                 train_acc = func.check_accuracy(args, program_generator,
@@ -292,11 +317,43 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 with open(args.checkpoint_path + '.json', 'w') as f:
                     json.dump(checkpoint, f)
                     
-            if t == args.num_iterations:
+            if t == args.num_iterations and args.epochs == 0:
                 break
-                
-                            
-                
+ 
+    print('Model is done, performing last accuracy check and saving model')
+    print('Calculating accuracy')
+    train_acc = func.check_accuracy(args, program_generator,
+                                    execution_engine, train_loader)
+    print('Train accuracy is: ', train_acc)
+    val_acc = func.check_accuracy(args, program_generator,
+                                  execution_engine, val_loader)
+    print('Val accuracy is: ', val_acc)
+    stats['train_accs'].append(train_acc)
+    stats['val_accs'].append(val_acc)
+    stats['val_accs_ts'].append(t)
+    
+    if val_acc > stats['best_val_acc']:
+        stats['best_val_acc'] = val_acc
+        stats['model_t'] = t
+        best_pg_state = func.get_state(program_generator)
+        best_ee_state = func.get_state(execution_engine)
+        
+    checkpoint = {'args': args.__dict__,
+                  'program_generator_kwargs': pg_kwargs,
+                  'program_generator_state': best_pg_state,
+                  'execution_engine_kwargs': ee_kwargs,
+                  'execution_engine_state': best_ee_state,
+                  'vocab': vocab}
+    
+    for k, v in stats.items():
+        checkpoint[k] = v
+    print('Saving checkpoint to %s' % args.checkpoint_path)
+    torch.save(checkpoint, args.checkpoint_path)
+    del checkpoint['program_generator_state']
+    del checkpoint['execution_engine_state']
+    with open(args.checkpoint_path + '.json', 'w') as f:
+        json.dump(checkpoint, f)
+                    
                 
                 
     
