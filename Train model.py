@@ -33,7 +33,7 @@ parser.add_argument('--exec_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG',
+parser.add_argument('--model_type', default='PG+EE',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
@@ -48,9 +48,10 @@ parser.add_argument('--num_val_samples', default=10000, type=int)
 parser.add_argument('--shuffle_train_data', default=True, type=int)
 
 #Bloom Filter
-parser.add_argument('--bloom_est_elements', default=10**6, type=int)
-parser.add_argument('--bloom_false_positive_rate', default=0.01, type=float)
-parser.add_argument('--bloom_load_path', default=None)
+parser.add_argument('--bf_est_ele', default=10**6, type=int)
+parser.add_argument('--bf_false_pos_rate', default=0.01, type=float)
+parser.add_argument('--bf_load_path', default='../Data/bloom_filters')
+
 parser.add_argument('--bloom_percentage', default=0.05, type=float)
 
 #MAPO
@@ -59,8 +60,6 @@ parser.add_argument('--MAPO_EE', default='../Models/ee_best.pt')
 parser.add_argument('--MAPO_use_GPU', default=0, type=int)
 parser.add_argument('--MAPO_sample_argmax', default=0, type=int)
 parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
-parser.add_argument('--MAPO_train_pg', default=True)
-parser.add_argument('--MAPO_train_ee', default=False)
 
 #Datapaths
 parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_val')
@@ -68,6 +67,8 @@ parser.add_argument('--train_features_h5', default='../Data/h5py/img_features_h5
 parser.add_argument('--val_questions_h5', default='../Data/h5py/questions_h5py_val')
 parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py_val')
 parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
+parser.add_argument('--high_reward_path', default='../Data/high_reward_paths/')
+
 parser.add_argument('--checkpoint_path', default='../Data/checkpoint.pt')
 
 #Dataloader params
@@ -186,7 +187,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             for cpu in range(cpu_count):
                 p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
                                                   execution_engine.cpu(), vocab, 
-                                                  bf, que))
+                                                  que, args.train_execution_engine))
                 p.start()    
                 processes.append(p)
         else:
@@ -207,119 +208,195 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             break
         epoch += 1
         print('Starting epoch %d' % epoch)
-        for batch in train_loader:
-            t += 1
-            questions, _, feats, answers, programs, _ = batch
-            questions_var = Variable(questions.cuda())
-            feats_var = Variable(feats.cuda())
-            answers_var = Variable(answers.cuda())
-            if programs[0] is not None:
-                programs_var = Variable(programs.cuda())
-            reward = None
-            if args.model_type == 'PG':
-                pg_optimizer.zero_grad()
-                loss = program_generator(questions_var, programs_var)
-                loss.backward()
-                pg_optimizer.step()
-            elif args.model_type == 'EE':
-                ee_optimizer.zero_grad()
-                scores = execution_engine(feats_var, programs_var)
-                loss = loss_fn(scores, answers_var)
-                loss.backward()
-                ee_optimizer.step()
-            elif args.model_type == 'PG+EE':
-                programs_pred = program_generator.reinforce_sample(questions_var)   
-                scores = execution_engine(feats_var, programs_pred)
-                loss = loss_fn(scores, answers_var)
-                _, preds = scores.data.cpu().max(1)
-                raw_reward = (preds == answers).float()
-                reward_moving_avg *= args.reward_decay
-                reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
-                centered_reward = raw_reward - reward_moving_avg
-                
-                if args.train_execution_engine == 1:
+        if not args.mapo:
+            for batch in train_loader:
+                t += 1
+                questions, _, feats, answers, programs, _ = batch
+                questions_var = Variable(questions.cuda())
+                feats_var = Variable(feats.cuda())
+                answers_var = Variable(answers.cuda())
+                if programs[0] is not None:
+                    programs_var = Variable(programs.cuda())
+                reward = None
+                if args.model_type == 'PG':
+                    pg_optimizer.zero_grad()
+                    loss = program_generator(questions_var, programs_var)
+                    loss.backward()
+                    pg_optimizer.step()
+                elif args.model_type == 'EE':
                     ee_optimizer.zero_grad()
+                    scores = execution_engine(feats_var, programs_var)
+                    loss = loss_fn(scores, answers_var)
                     loss.backward()
                     ee_optimizer.step()
+                elif args.model_type == 'PG+EE':
+                    programs_pred = program_generator.reinforce_sample(questions_var)   
+                    scores = execution_engine(feats_var, programs_pred)
+                    loss = loss_fn(scores, answers_var)
+                    _, preds = scores.data.cpu().max(1)
+                    raw_reward = (preds == answers).float()
+                    reward_moving_avg *= args.reward_decay
+                    reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+                    centered_reward = raw_reward - reward_moving_avg
                     
-                if args.train_program_generator == 1:
-                    pg_optimizer.zero_grad()
-                    program_generator.reinforce_backward(centered_reward.cuda())
-                    pg_optimizer.step()
-                
-                if args.mapo and que.qsize() != 0:
-                    for _ in range(que.qsize()):
-                        feats_var, program_pred = que.get_nowait()
-                        scores = execution_engine(feats_var, program_pred)
-                        _, preds = scores.data.cpu().max(1)
-                        raw_reward = (preds == answers).float()
-                        reward_moving_avg *= args.reward_decay
-                        reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
-                        centered_reward = raw_reward - reward_moving_avg
-                
-                    if args.MAPO_train_ee == 1:
+                    if args.train_execution_engine == 1:
                         ee_optimizer.zero_grad()
                         loss.backward()
                         ee_optimizer.step()
-                    
-                    if args.MAPO_train_pg == 1:
+                        
+                    if args.train_program_generator == 1:
                         pg_optimizer.zero_grad()
                         program_generator.reinforce_backward(centered_reward.cuda())
                         pg_optimizer.step()
-                    
-                    #Release memory again
-                    del feats_var
-                    del program_pred
+                if t % args.record_loss_every == 0:
+                    stats['train_losses'].append(loss.data.item())
+                    stats['train_losses_ts'].append(t)
+                    if reward is not None:
+                        stats['train_rewards'].append(reward)
 
-            if t % args.record_loss_every == 0:
-                stats['train_losses'].append(loss.data.item())
-                stats['train_losses_ts'].append(t)
-                if reward is not None:
-                    stats['train_rewards'].append(reward)
+                _loss.append(loss.item())
 
-            _loss.append(loss.item())
-
-            if t % args.print_loss_every == 0:
-                print(t, sum(_loss)/len(_loss))
-                _loss = []
+                if t % args.print_loss_every == 0:
+                    print(t, sum(_loss)/len(_loss))
+                    _loss = []
             
-            if t % args.checkpoint_every == 0:
-                print('Calculating accuracy')
-                train_acc = func.check_accuracy(args, program_generator,
+                if t % args.checkpoint_every == 0:
+                    print('Calculating accuracy')
+                    train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                print('Train accuracy is: ', train_acc)
-                val_acc = func.check_accuracy(args, program_generator,
+                    print('Train accuracy is: ', train_acc)
+                    val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                print('Val accuracy is: ', val_acc)
-                stats['train_accs'].append(train_acc)
-                stats['val_accs'].append(val_acc)
-                stats['val_accs_ts'].append(t)
+                    print('Val accuracy is: ', val_acc)
+                    stats['train_accs'].append(train_acc)
+                    stats['val_accs'].append(val_acc)
+                    stats['val_accs_ts'].append(t)
                 
-                if val_acc > stats['best_val_acc']:
-                    stats['best_val_acc'] = val_acc
-                    stats['model_t'] = t
-                    best_pg_state = func.get_state(program_generator)
-                    best_ee_state = func.get_state(execution_engine)
+                    if val_acc > stats['best_val_acc']:
+                        stats['best_val_acc'] = val_acc
+                        stats['model_t'] = t
+                        best_pg_state = func.get_state(program_generator)
+                        best_ee_state = func.get_state(execution_engine)
                     
-                checkpoint = {'args': args.__dict__,
-                              'program_generator_kwargs': pg_kwargs,
-                              'program_generator_state': best_pg_state,
-                              'execution_engine_kwargs': ee_kwargs,
-                              'execution_engine_state': best_ee_state,
-                              'vocab': vocab}
-                
-                for k, v in stats.items():
-                    checkpoint[k] = v
-                print('Saving checkpoint to %s' % args.checkpoint_path)
-                torch.save(checkpoint, args.checkpoint_path)
-                del checkpoint['program_generator_state']
-                del checkpoint['execution_engine_state']
-                with open(args.checkpoint_path + '.json', 'w') as f:
-                    json.dump(checkpoint, f)
+                    checkpoint = {'args': args.__dict__,
+                                  'program_generator_kwargs': pg_kwargs,
+                                  'program_generator_state': best_pg_state,
+                                  'execution_engine_kwargs': ee_kwargs,
+                                  'execution_engine_state': best_ee_state,
+                                  'vocab': vocab}
+                    for k, v in stats.items():
+                        checkpoint[k] = v
+                    print('Saving checkpoint to %s' % args.checkpoint_path)
+                    torch.save(checkpoint, args.checkpoint_path)
+                    del checkpoint['program_generator_state']
+                    del checkpoint['execution_engine_state']
+                    with open(args.checkpoint_path + '.json', 'w') as f:
+                        json.dump(checkpoint, f)
                     
-            if t == args.num_iterations and args.epochs == 0:
-                break
- 
+                if t == args.num_iterations and args.epochs == 0:
+                    break
+        #MAPO
+        else:        
+            t += 1
+            i = 0
+            if args.train_execution_engine == 1:
+                while i < args.batch_size:
+                    feats_var[i], programs_pred[i], w[i] = que.get()
+                    i += 1
+                scores = execution_engine(feats_var, programs_pred)
+                _, preds = scores.data.cpu().max(1)
+                raw_reward = (preds == answers).float()
+            else:
+                while i < args.batch_size:
+                    
+                    i += 1
+      
+        
+        
+        
+        
+#        reward_moving_avg *= args.reward_decay
+#            reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+#            centered_reward = raw_reward - reward_moving_avg
+#            
+#            if args.train_execution_engine == 1:
+#                ee_optimizer.zero_grad()
+#                loss.backwards()
+#                ee_optimizer.step()
+#            
+#                if args.mapo and que.qsize() != 0:
+#                    for _ in range(que.qsize()):
+#                        feats_var, program_pred = que.get_nowait()
+#                        scores = execution_engine(feats_var, program_pred)
+#                        _, preds = scores.data.cpu().max(1)
+#                        raw_reward = (preds == answers).float()
+#                        reward_moving_avg *= args.reward_decay
+#                        reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+#                        centered_reward = raw_reward - reward_moving_avg
+#                
+#                    if args.MAPO_train_ee == 1:
+#                        ee_optimizer.zero_grad()
+#                        loss.backward()
+#                        ee_optimizer.step()
+#                    
+#                    if args.MAPO_train_pg == 1:
+#                        pg_optimizer.zero_grad()
+#                        program_generator.reinforce_backward(centered_reward.cuda())
+#                        pg_optimizer.step()
+#                    
+#                    #Release memory again
+#                    del feats_var
+#                    del program_pred
+#
+#            if t % args.record_loss_every == 0:
+#                stats['train_losses'].append(loss.data.item())
+#                stats['train_losses_ts'].append(t)
+#                if reward is not None:
+#                    stats['train_rewards'].append(reward)
+#
+#            _loss.append(loss.item())
+#
+#            if t % args.print_loss_every == 0:
+#                print(t, sum(_loss)/len(_loss))
+#                _loss = []
+#            
+#            if t % args.checkpoint_every == 0:
+#                print('Calculating accuracy')
+#                train_acc = func.check_accuracy(args, program_generator,
+#                                                execution_engine, train_loader)
+#                print('Train accuracy is: ', train_acc)
+#                val_acc = func.check_accuracy(args, program_generator,
+#                                              execution_engine, val_loader)
+#                print('Val accuracy is: ', val_acc)
+#                stats['train_accs'].append(train_acc)
+#                stats['val_accs'].append(val_acc)
+#                stats['val_accs_ts'].append(t)
+#                
+#                if val_acc > stats['best_val_acc']:
+#                    stats['best_val_acc'] = val_acc
+#                    stats['model_t'] = t
+#                    best_pg_state = func.get_state(program_generator)
+#                    best_ee_state = func.get_state(execution_engine)
+#                    
+#                checkpoint = {'args': args.__dict__,
+#                              'program_generator_kwargs': pg_kwargs,
+#                              'program_generator_state': best_pg_state,
+#                              'execution_engine_kwargs': ee_kwargs,
+#                              'execution_engine_state': best_ee_state,
+#                              'vocab': vocab}
+#                
+#                for k, v in stats.items():
+#                    checkpoint[k] = v
+#                print('Saving checkpoint to %s' % args.checkpoint_path)
+#                torch.save(checkpoint, args.checkpoint_path)
+#                del checkpoint['program_generator_state']
+#                del checkpoint['execution_engine_state']
+#                with open(args.checkpoint_path + '.json', 'w') as f:
+#                    json.dump(checkpoint, f)
+#                    
+#            if t == args.num_iterations and args.epochs == 0:
+#                break
+    
     print('Model is done, performing last accuracy check and saving model')
     print('Calculating accuracy')
     train_acc = func.check_accuracy(args, program_generator,

@@ -113,16 +113,16 @@ class Seq2Seq(nn.Module):
         return output_logprobs, ht, ct
     
     def reinforce_sample_MAPO(self, x, bloom_filter, temperature=1.0, 
-                              argmax=False):
+                              argmax=True):
         N, T = x.size(0), self.max_length
         assert N == 1
         encoded = self.encoder(x)
         y = torch.LongTensor(N, T).fill_(self.NULL)
         cur_input = Variable(x.data.new(N,1).fill_(self.START))
         h, c = None, None
-        self.multinomial_outputs = []
-        self.multinomial_probs = []
-        self.multinomial_m = []
+        multinomial_outputs = []
+        multinomial_probs = []
+        multinomial_m = []
         t = 0
         while t < T-1:
             logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
@@ -136,13 +136,15 @@ class Seq2Seq(nn.Module):
             y[:, t] = cur_output.data.cpu()
             prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
             while bloom_filter.check(prg_tmp) and sum(probs) > 0:
-                #TODO: Check that we do not hang here
                 probs[cur_output] = 0
                 m = torch.distributions.Categorical(probs)
-                cur_output = m.sample()
+                if argmax:
+                    _, cur_output = probs.max(1) 
+                else:
+                    cur_output = m.sample()
                 y[:, t] = cur_output.data.cpu()
                 prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
-            if bloom_filter.check(prg_tmp) == False:
+            if bloom_filter.check(prg_tmp) == 0:
                 t += 1
                 cur_input = cur_output.unsqueeze(1)
             else:
@@ -152,7 +154,11 @@ class Seq2Seq(nn.Module):
             if cur_output.data.cpu() == self.END:
                 bloom_filter.add(prg_tmp)
                 break
-        return Variable(y.type_as(x.data))
+            multinomial_outputs.append(cur_output)
+            multinomial_probs.append(probs)
+            multinomial_m.append(m)
+        return Variable(y.type_as(x.data)), bloom_filter, multinomial_outputs, \
+               multinomial_probs, multinomial_m
                 
     def reinforce_sample(self, x, temperature=1.0, argmax=False):
         N, T = x.size(0), self.max_length
@@ -228,6 +234,25 @@ class Seq2Seq(nn.Module):
             m = self.multinomial_m[i]
             loss = -(m.log_prob(sampled_output)*reward).sum()
             loss.backward(retain_graph=True)
+            
+    def reinforce_backward_MAPO(self, multinomial_outputs, multinomial_m,
+                                multinomial_probs, reward, output_mask=None):
+        assert multinomial_outputs is not None, 'Must call reinforce sample MAPO first'
+        def gen_hook(mask):
+            def hook(grad):
+                return grad * mask.contiguous().view(-1,1).expand_as(grad)
+            return hook
+        
+        if output_mask is not None:
+            for t, probs in enumerate(multinomial_probs):
+                mask = Variable(output_mask[:,t])
+                probs.register_hook(gen_hook(mask))
+                
+        for i in range(len(multinomial_outputs)):
+            sampled_output = multinomial_outputs[i]
+            m = multinomial_m[i]
+            loss = -(m.log_prob(sampled_output)*reward).sum()
+            loss.backward(retain_graph=True)    
             
     def sample(self, x, max_length=50):
         self.multinomial_outputs = None

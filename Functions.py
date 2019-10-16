@@ -14,6 +14,7 @@ from torch.autograd import Variable
 from Preprocess_funcs import decode
 import numpy as np
 from probables import CountingBloomFilter as CBF
+
 #Vocab funcs
 def invert_dict(d):
     return {v: k for k, v in d.items()}
@@ -164,6 +165,7 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     return acc
 
 #Bloom Filter Functions
+#TODO Not in use
 class BloomFilter:
     def __init__(self, est_ele=10**6, false_pos=0.01, load_path=None,
                  percentage=0.05):
@@ -190,8 +192,7 @@ class BloomFilter:
         self.bf.export(save_path)
         print('Bloom filter saved to: %s' % save_path)
     
-#MAPO Functions
-        
+#MAPO Functions  
 def load_vocab_MAPO(args):
     path = args.execution_engine
     return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
