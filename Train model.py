@@ -33,18 +33,18 @@ parser.add_argument('--exec_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG+EE',
+parser.add_argument('--model_type', default='PG',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 
 #Training length
 parser.add_argument('--num_iterations', default=20000, type=int)
-parser.add_argument('--epochs', default=0, type=int) #If 0 we use num_iterations to determine training length
+parser.add_argument('--epochs', default=2, type=int) #If 0 we use num_iterations to determine training length
 
 #Samples and shuffeling
-parser.add_argument('--num_train_samples', default=18000, type=int)
-parser.add_argument('--num_val_samples', default=10000, type=int)
+parser.add_argument('--num_train_samples', default=None, type=int)
+parser.add_argument('--num_val_samples', default=None, type=int)
 parser.add_argument('--shuffle_train_data', default=True, type=int)
 
 #Bloom Filter
@@ -60,6 +60,7 @@ parser.add_argument('--MAPO_EE', default='../Models/ee_best.pt')
 parser.add_argument('--MAPO_use_GPU', default=0, type=int)
 parser.add_argument('--MAPO_sample_argmax', default=0, type=int)
 parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
+parser.add_argument('--MAPO_alpha', default=0.1, type=float)
 
 #Datapaths
 parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_val')
@@ -69,7 +70,7 @@ parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py
 parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
 parser.add_argument('--high_reward_path', default='../Data/high_reward_paths/')
 
-parser.add_argument('--checkpoint_path', default='../Data/checkpoint.pt')
+parser.add_argument('--checkpoint_path', default='../Data/pg_checkpoint.pt')
 
 #Dataloader params
 parser.add_argument('--feature_dim', default='1024,14,14')
@@ -177,6 +178,13 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     print('Train loader has %d samples' % len(train_loader.dataset))
     print('Validation loader has %d samples' % len(val_loader.dataset))
     if args.mapo:
+        scores = torch.zeros()
+        m_m = torch.zeros()
+        m_out = torch.zeros()
+        m_prob = torch.zeros()
+        w = torch.zeros(args.batch_size)
+        
+        
         if args.MAPO_use_gpu == 0:
             print('MAPO will use %d CPUs' % cpu_count)
             func.set_mode('eval', [program_generator, execution_engine])
@@ -187,7 +195,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             for cpu in range(cpu_count):
                 p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
                                                   execution_engine.cpu(), vocab, 
-                                                  que, args.train_execution_engine))
+                                                  que))
                 p.start()    
                 processes.append(p)
         else:
@@ -299,31 +307,26 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         else:        
             t += 1
             i = 0
+            while i < args.batch_size:
+                feats_var[i], programs_pred[i], m_out[i], m_prob[i], m_m[i], w[i] = que.get()
+                i += 1
+            scores = execution_engine(feats_var, programs_pred)
+            loss = loss_fn(scores, answers_var)
+            _, preds = scores.data.cpu().max(1)
+            raw_reward = (preds == answers).float()
+            reward_moving_avg *= args.reward_decay
+            reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+            centered_reward = raw_reward - reward_moving_avg
+          
             if args.train_execution_engine == 1:
-                while i < args.batch_size:
-                    feats_var[i], programs_pred[i], w[i] = que.get()
-                    i += 1
-                scores = execution_engine(feats_var, programs_pred)
-                _, preds = scores.data.cpu().max(1)
-                raw_reward = (preds == answers).float()
-            else:
-                while i < args.batch_size:
-                    
-                    i += 1
-      
-        
-        
-        
-        
-#        reward_moving_avg *= args.reward_decay
-#            reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
-#            centered_reward = raw_reward - reward_moving_avg
-#            
-#            if args.train_execution_engine == 1:
-#                ee_optimizer.zero_grad()
-#                loss.backwards()
-#                ee_optimizer.step()
-#            
+                ee_optimizer.zero_grad()
+                loss.backwards()
+                ee_optimizer.step()
+            pg_optimizer.zero_grad()
+            program_generator.reinforce_backward_MAPO(m_out, m_prob, m_m, reward, w)
+            pg_optimizer.step()
+            
+            
 #                if args.mapo and que.qsize() != 0:
 #                    for _ in range(que.qsize()):
 #                        feats_var, program_pred = que.get_nowait()

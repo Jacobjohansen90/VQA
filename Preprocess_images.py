@@ -22,7 +22,7 @@ max_images = None
 output_h5_file = '../Data/h5py/img_features_h5py_'+split
 model = 'resnet101'
 model_stage = 3
-batch_size = 32
+batch_size = 64
 img_h = img_w = 224
 
 ##Preprocessing

@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from Embedding_funcs import expand_embedding_vocab
+import os
 
 
 class Seq2Seq(nn.Module):
@@ -158,8 +159,30 @@ class Seq2Seq(nn.Module):
             multinomial_probs.append(probs)
             multinomial_m.append(m)
         return Variable(y.type_as(x.data)), bloom_filter, multinomial_outputs, \
-               multinomial_probs, multinomial_m
-                
+                multinomial_probs, multinomial_m
+    
+    def random_sample_MAPO(self, questions, program_preds, temperature):
+        N = questions.size(0)
+        assert N == 1
+        encoded = self.encoder(questions)
+        cur_input = Variable(questions.data.new(N,1).fill_(self.START))
+        h, c = None, None
+        w = 1
+        multinomial_output = []
+        multinomial_probs = []
+        multinomial_m = []
+        for t in range(program_preds.shape(1)):
+            logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
+            logprobs = logprobs / temperature
+            probs = F.softmax(logprobs.view(N, -1), dim=1)
+            m = torch.distributions.Categorical(probs)
+            multinomial_output.append(program_preds[:,t])
+            multinomial_probs.append(probs)
+            multinomial_m.append(m)
+            w *= probs[program_preds[:,t]]
+            cur_input = program_preds[:,t]
+        return multinomial_output, multinomial_probs, multinomial_m, w
+        
     def reinforce_sample(self, x, temperature=1.0, argmax=False):
         N, T = x.size(0), self.max_length
         encoded = self.encoder(x)
@@ -235,8 +258,8 @@ class Seq2Seq(nn.Module):
             loss = -(m.log_prob(sampled_output)*reward).sum()
             loss.backward(retain_graph=True)
             
-    def reinforce_backward_MAPO(self, multinomial_outputs, multinomial_m,
-                                multinomial_probs, reward, output_mask=None):
+    def reinforce_backward_MAPO(self, multinomial_outputs, multinomial_probs,
+                                multinomial_m, reward, w, output_mask=None):
         assert multinomial_outputs is not None, 'Must call reinforce sample MAPO first'
         def gen_hook(mask):
             def hook(grad):

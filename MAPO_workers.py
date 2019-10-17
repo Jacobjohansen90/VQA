@@ -17,7 +17,7 @@ import random
 #%% Options
 
 
-def MAPO(args, pg, ee, vocab, que, train_ee):
+def MAPO(args, pg, ee, vocab, que):
     loader_kwargs = {'question_h5': args.train_questions_h5,
                      'feature_h5': args.train_features_h5,
                      'vocab': vocab,
@@ -46,7 +46,7 @@ def MAPO(args, pg, ee, vocab, que, train_ee):
                 with torch.no_grad():
                     question_var = Variable(question.type(dtype).long())
                     feats_var = Variable(feats.type(dtype))
-                program_pred, bf = pg.reinforce_sample_MAPO(question_var, bf, 
+                program_pred, bf, m_out, m_probs, m_m = pg.reinforce_sample_MAPO(question_var, bf, 
                                                             temperature=args.temperature, 
                                                             argmax=args.MAPO_sample_argmax)
                 bf.export(bf_path)
@@ -58,8 +58,10 @@ def MAPO(args, pg, ee, vocab, que, train_ee):
                 if pred == answer:
                     name = str(time.time() - start_t)
                     torch.save(program_pred, directory + name)
+                    put_in_que = True
                 #Random sample a high reward output
                 if len(os.listdir(directory)) == 0:
+                    continue
                     #TODO: What to do if no high reward paths?
                 else:
                     question = torch.zeros(args.length_output)
@@ -70,13 +72,15 @@ def MAPO(args, pg, ee, vocab, que, train_ee):
                         question[i] = int(q[i])
                     with torch.no_grad():
                         question_var = Variable(question)
-                    m_output, m_probs, m_m = pg.random_sample_MAPO(question_var, program_pred,
+                    hr_m_out, hr_m_probs, hr_m_m, w = pg.random_sample_MAPO(question_var, program_pred,
                                                                    temperature=args.temperature)
                     
-                    if train_ee:
-                        que.put((feats_var, program_pred, m_output, m_probs, m_m))
-                    else:
-                        que.put((scores, m_output, m_probs, m_m))
+                    if args.MAPO_alpha > w:
+                        w = args.MAPO_alpha
+                    que.put((feats_var, program_pred, answer, hr_m_out, hr_m_probs, hr_m_m, w))
+                    if put_in_que:
+                        que.put((feats_var, program_pred, answer, m_out, m_probs, m_m, (1-w)))
+                        put_in_que = False
                     
                     
                     
