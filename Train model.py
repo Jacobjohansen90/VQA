@@ -310,10 +310,12 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     with open(args.checkpoint_path + '.json', 'w') as f:
                         json.dump(checkpoint, f)
                     
+                    if break_counter >= args.break_after:
+                        break
+                    
                 if t == args.num_iterations and args.epochs == 0:
                     break
-                if break_counter >= args.break_after:
-                    break
+
         #MAPO
         else:
             while t < len(train_loader)//args.batch_size:
@@ -389,10 +391,12 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     with open(args.checkpoint_path + '.json', 'w') as f:
                         json.dump(checkpoint, f)
                         
+                    if break_counter >= args.break_after:
+                        break
+                        
                 if t == args.num_iterations and args.epochs == 0:
                     break 
-                if break_counter >= args.break_after:
-                    break
+
             
     print('Model is done, performing last accuracy check and saving model')
     print('Model trained for %d epochs' % epoch)
