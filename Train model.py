@@ -15,6 +15,8 @@ import argparse
 from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO
+
+import re
 import copy
 copy = copy.deepcopy
 """
@@ -145,8 +147,11 @@ val_loader_kwargs = {
         'max_samples': args.num_val_samples,
         'num_workers': args.loader_num_workers}
 
+if args.model_type == "PG" or args.model_type == "EE":
+    model_name = args.model_type+'_'+str(int(args.num_train_samples)//1000)+'k'
+else:
+    model_name = args.model_type+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
 
-model_name = args.model_type+'_'+ str(int(args.num_train_samples)//1000)+'k'
 args.checkpoint_path = args.checkpoint_path + model_name
 
 
