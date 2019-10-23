@@ -113,7 +113,7 @@ class Seq2Seq(nn.Module):
         
         return output_logprobs, ht, ct
     
-    def reinforce_sample_MAPO(self, x, bloom_filter, temperature=1.0, 
+    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, 
                               argmax=True):
         N, T = x.size(0), self.max_length
         assert N == 1
@@ -161,13 +161,13 @@ class Seq2Seq(nn.Module):
         return Variable(y.type_as(x.data)), bloom_filter, multinomial_outputs, \
                 multinomial_probs, multinomial_m
     
-    def random_sample_MAPO(self, questions, program_preds, temperature):
+    def program_to_probs(self, questions, program_preds, temperature):
         N = questions.size(0)
         assert N == 1
         encoded = self.encoder(questions)
         cur_input = Variable(questions.data.new(N,1).fill_(self.START))
         h, c = None, None
-        w = 1
+        #w = 1
         multinomial_output = []
         multinomial_probs = []
         multinomial_m = []
@@ -179,9 +179,9 @@ class Seq2Seq(nn.Module):
             multinomial_output.append(program_preds[:,t])
             multinomial_probs.append(probs)
             multinomial_m.append(m)
-            w *= probs[program_preds[:,t]]
+            #w *= probs[program_preds[:,t]]
             cur_input = program_preds[:,t]
-        return multinomial_output, multinomial_probs, multinomial_m, w
+        return multinomial_output, multinomial_probs, multinomial_m
         
     def reinforce_sample(self, x, temperature=1.0, argmax=False):
         N, T = x.size(0), self.max_length
@@ -290,8 +290,5 @@ class Seq2Seq(nn.Module):
             if len(y) >= max_length or y[-1] == self.END:
                 break
         return y
-
-            
-        
     
     

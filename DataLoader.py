@@ -37,7 +37,7 @@ class ClevrDataset(Dataset):
             all_image_idxs = np.asarray(question_h5['image_idxs'])
             mask = all_image_idxs >= image_idx_start_from
             
-        #We read all data into memory, change this if Q file becommes too large
+        #We read all data into memory, change this if Q file becomes too large
         print('Reading data into memory')
         self.all_questions = dataset_to_tensor(question_h5['questions'], mask)
         self.all_image_idxs = dataset_to_tensor(question_h5['image_idxs'], mask)

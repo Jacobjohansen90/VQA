@@ -11,7 +11,6 @@ from torch.autograd import Variable
 from DataLoader import ClevrDataLoader
 from probables import CountingBloomFilter as CBF
 import os
-import time
 import random
 
 #%% Options
@@ -22,7 +21,6 @@ def MAPO(args, pg, ee, vocab, que):
                      'feature_h5': args.train_features_h5,
                      'vocab': vocab,
                      'batch_size': args.batch_size}
-    start_t = time.time()
     with ClevrDataLoader(**loader_kwargs) as loader:
         dtype = torch.FloatTensor
         if args.MAPO_use_GPU == 1:
@@ -36,6 +34,7 @@ def MAPO(args, pg, ee, vocab, que):
                 question = question.unsqueeze(0)
                 q_name = '-'.join(str(e) for e in question.numpy() if e != 0)
                 bf_path = args.bf_load_path + '/' + q_name
+                directory = args.high_reward_path+q_name+'/'
                 try:
                     bf = CBF(filepath=bf_path)
                 except:
@@ -49,38 +48,48 @@ def MAPO(args, pg, ee, vocab, que):
                 program_pred, bf, m_out, m_probs, m_m = pg.reinforce_sample_MAPO(question_var, bf, 
                                                             temperature=args.temperature, 
                                                             argmax=args.MAPO_sample_argmax)
-                bf.export(bf_path)
+                bf.export(bf_path)                
                 scores = ee(feats_var, program_pred)
                 _, pred = scores.data.cpu().max(1)
-                directory = args.high_reward_path+q_name+'/'
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 if pred == answer:
-                    name = str(time.time() - start_t)
+                    name = 1
                     torch.save(program_pred, directory + name)
-                    put_in_que = True
-                #Random sample a high reward output
-                if len(os.listdir(directory)) == 0:
-                    continue
-                    #TODO: What to do if no high reward paths?
+                    high_reward = True
                 else:
-                    question = torch.zeros(args.length_output)
-                    q = random.choice(os.listdir(directory))
-                    program_pred = torch.load(directory + q)
-                    q = q.split('-')
-                    for i in len(q):
-                        question[i] = int(q[i])
-                    with torch.no_grad():
-                        question_var = Variable(question)
-                    hr_m_out, hr_m_probs, hr_m_m, w = pg.random_sample_MAPO(question_var, program_pred,
-                                                                   temperature=args.temperature)
-                    
-                    if args.MAPO_alpha > w:
-                        w = args.MAPO_alpha
-                    que.put((feats_var, program_pred, answer, hr_m_out, hr_m_probs, hr_m_m, w))
-                    if put_in_que:
-                        que.put((feats_var, program_pred, answer, m_out, m_probs, m_m, (1-w)))
-                        put_in_que = False
+                    high_reward = False
+                #Random sample a none-reward output
+                if high_reward:
+                    while True:
+                        program_pred, bf, m_out, m_probs, m_m = \
+                        pg.reinforce_novel_sample(question_var, bf, 
+                                                 temperature=args.temperature, 
+                                                 argmax=args.MAPO_sample_argmax)
+                        scores = ee(feats_var, program_pred)
+                        _, pred = scores.data.cpu().max(1)
+                        #TODO: Then sample another sample
+                        if pred != answer:
+                            que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
+                            break
+                #Random sample a high-reward output                    
+                else:
+                    que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
+                    if len(os.listdir(directory)) == 0:
+                        continue
+                        #TODO: What to do if no high reward paths?
+                    else:
+                        question = torch.zeros(args.length_output)
+                        q = random.choice(os.listdir(directory))
+                        program_pred = torch.load(directory + q)
+                        q = q.split('-')
+                        for i in len(q):
+                            question[i] = int(q[i])
+                        with torch.no_grad():
+                            question_var = Variable(question)
+                        m_out, m_probs, m_m = pg.program_to_probs(question_var, program_pred,
+                                                                       temperature=args.temperature)                    
+                        que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
                     
                     
                     
