@@ -46,6 +46,9 @@ parser.add_argument('--epochs', default=0, type=int)
 parser.add_argument('--break_after', default=3, type=int)
 #If val has not improved after break_after checks, we early stop
 
+parser.add_argument('--info', default=False)
+#Do you want all info or minimal?
+
 #Samples and shuffeling
 parser.add_argument('--num_train_samples', default=20000, type=int)
 parser.add_argument('--num_val_samples', default=15000, type=int)
@@ -112,7 +115,7 @@ parser.add_argument('--temperature', default=1.0, type=float)
 
 # Output options
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
-parser.add_argument('--print_loss_every', type=int, default=500)
+parser.add_argument('--print_loss_every', type=int, default=1000)
 parser.add_argument('--record_loss_every', type=int, default=1)
 parser.add_argument('--checkpoint_every', default=1000, type=int)
 
@@ -146,8 +149,9 @@ val_loader_kwargs = {
         'num_workers': args.loader_num_workers}
 
 
-args.checkpoint_path = args.checkpoint_path + args.model_type+'_'+ \
-str(int(args.num_train_samples)//1000)+'k'
+model_name = args.model_type+'_'+ str(int(args.num_train_samples)//1000)+'k'
+args.checkpoint_path = args.checkpoint_path + model_name
+
 
 with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
      ClevrDataLoader(**val_loader_kwargs) as val_loader:
@@ -180,9 +184,9 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     t, epoch, reward_moving_avg = 0,0,0
     
-    
-    print('Train loader has %d samples' % len(train_loader.dataset))
-    print('Validation loader has %d samples' % len(val_loader.dataset))
+    if args.info:
+        print('Train loader has %d samples' % len(train_loader.dataset))
+        print('Validation loader has %d samples' % len(val_loader.dataset))
     if args.mapo:
         scores = torch.zeros()
         m_m = torch.zeros()
@@ -221,7 +225,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     p.terminate()
             break
         epoch += 1
-        #print('Starting epoch %d' % epoch)
+        if args.info:
+            print('Starting epoch %d' % epoch)
         if not args.mapo:
             for batch in train_loader:
                 t += 1
@@ -238,7 +243,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     loss.backward()
                     pg_optimizer.step()
                 elif args.model_type == 'EE':
-                    ee_optimizer.zero_grad()
+                    ee_optimizer.zero_grad()                
                     scores = execution_engine(feats_var, programs_var)
                     loss = loss_fn(scores, answers_var)
                     loss.backward()
@@ -271,17 +276,18 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 _loss.append(loss.item())
 
                 if t % args.print_loss_every == 0:
-                    print(t, sum(_loss)/len(_loss))
+                    print(model_name, t, sum(_loss)/len(_loss))
                     _loss = []
             
                 if t % args.checkpoint_every == 0:
-                    print('Calculating accuracy')
+                    if args.info:
+                        print('Calculating accuracy')
                     train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                    print('Train accuracy is: ', train_acc)
+                    print('Train accuracy for %s is: %d' % (model_name, train_acc))
                     val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                    print('Val accuracy is: ', val_acc)
+                    print('Val accuracy for %s is %d: ' % (model_name, val_acc))
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
@@ -303,7 +309,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                                   'vocab': vocab}
                     for k, v in stats.items():
                         checkpoint[k] = v
-                    print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
+                    if args.info:
+                        print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
                     torch.save(checkpoint, args.checkpoint_path+'.pt')
                     del checkpoint['program_generator_state']
                     del checkpoint['execution_engine_state']
@@ -352,17 +359,18 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 _loss.append(loss.item())
     
                 if t % args.print_loss_every == 0:
-                    print(t, sum(_loss)/len(_loss))
+                    print(model_name, t, sum(_loss)/len(_loss))
                     _loss = []
                 
                 if t % args.checkpoint_every == 0:
-                    print('Calculating accuracy')
+                    if args.info:
+                        print('Calculating accuracy')
                     train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                    print('Train accuracy is: ', train_acc)
+                    print('Train accuracy for %s is: %d' % (model_name, train_acc))
                     val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                    print('Val accuracy is: ', val_acc)
+                    print('Val accuracy for %s is: %d' % (model_name, val_acc))
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
@@ -384,7 +392,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                                   'vocab': vocab}
                     for k, v in stats.items():
                         checkpoint[k] = v
-                    print('Saving checkpoint to %s' % args.checkpoint_path)
+                    if args.info:
+                        print('Saving checkpoint to %s' % args.checkpoint_path)
                     torch.save(checkpoint, args.checkpoint_path)
                     del checkpoint['program_generator_state']
                     del checkpoint['execution_engine_state']
@@ -398,15 +407,16 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     break 
 
             
-    print('Model is done, performing last accuracy check and saving model')
-    print('Model trained for %d epochs' % epoch)
-    print('Calculating accuracy')
+    print('Model %s is done, performing last accuracy check and saving model' % model_name)
+    print('Model %s trained for %d epochs' % (model_name, epoch))
+    if args.info:
+        print('Calculating accuracy')
     train_acc = func.check_accuracy(args, program_generator,
                                     execution_engine, train_loader)
-    print('Train accuracy is: ', train_acc)
+    print('Train accuracy for %s is: %d' % (model_name, train_acc))
     val_acc = func.check_accuracy(args, program_generator,
                                   execution_engine, val_loader)
-    print('Val accuracy is: ', val_acc)
+    print('Val accuracy for %s is: %d' % (model_name, val_acc))
     stats['train_accs'].append(train_acc)
     stats['val_accs'].append(val_acc)
     stats['val_accs_ts'].append(t)
@@ -426,7 +436,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     for k, v in stats.items():
         checkpoint[k] = v
-    print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
+    if args.info:
+        print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
     torch.save(checkpoint, args.checkpoint_path+'.pt')
     del checkpoint['program_generator_state']
     del checkpoint['execution_engine_state']
