@@ -20,7 +20,7 @@ copy = copy.deepcopy
 """
 Some network params are set in LSTM_Model.py and Module_Net.py
 """
-
+#TODO add loading for state dict and t
 
 #%% Setup Params
 
@@ -38,7 +38,7 @@ parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 
 #Training length
-parser.add_argument('--num_iterations', default=20000, type=int)
+parser.add_argument('--num_iterations', default=None, type=int)
 parser.add_argument('--epochs', default=0, type=int) 
 #If 0 epochs we use num_iterations to determine training length
 parser.add_argument('--break_after', default=3, type=int)
@@ -113,7 +113,6 @@ parser.add_argument('--temperature', default=1.0, type=float)
 
 # Output options
 parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
-parser.add_argument('--print_loss_every', type=int, default=1000)
 parser.add_argument('--record_loss_every', type=int, default=1)
 parser.add_argument('--checkpoint_every', default=1000, type=int)
 
@@ -276,23 +275,21 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
 
                 _loss.append(loss.item())
 
-                if t % args.print_loss_every == 0:
-                    print(model_name, t, sum(_loss)/len(_loss))
-                    _loss = []
             
                 if t % args.checkpoint_every == 0:
                     if args.info:
                         print('Calculating accuracy')
                     train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                    print('Train accuracy for %s is: %.4f' % (model_name, train_acc))
                     val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                    print('Val accuracy for %s is %.4f: ' % (model_name, val_acc))
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
-                
+                    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f'  \
+                          % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc))
+                    _loss = []
+
                     if val_acc > stats['best_val_acc']:
                         stats['best_val_acc'] = val_acc
                         stats['best_model_t'] = t
@@ -320,9 +317,9 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     
                     if break_counter >= args.break_after:
                         break
-                    
-                if t == args.num_iterations and args.epochs == 0:
-                    break
+                if args.num_iterations is not None:    
+                    if t == args.num_iterations and args.epochs == 0:
+                        break
 
         #MAPO
         else:
@@ -403,9 +400,9 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         
                     if break_counter >= args.break_after:
                         break
-                        
-                if t == args.num_iterations and args.epochs == 0:
-                    break 
+                if args.num_iterations is not None:        
+                    if t == args.num_iterations and args.epochs == 0:
+                        break 
 
             
     print('Model %s is done, performing last accuracy check and saving model' % model_name)
