@@ -212,6 +212,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
             raise KeyError('Not implemented')
             #TODO: Implement GPU MAPO
     _loss = []
+    break_counter = 0
     func.set_mode('train', [program_generator, execution_engine])
     while True:
         if epoch == args.epochs and args.epochs != 0:
@@ -224,6 +225,11 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 for p in processes:
                     p.terminate()
             break
+        elif break_counter >= args.break_after:
+            if args.mapo:
+                for p in processes:
+                    p.terminate()
+                break
         epoch += 1
         if args.info:
             print('Starting epoch %d' % epoch)
@@ -315,8 +321,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     with open(args.checkpoint_path + '.json', 'w') as f:
                         json.dump(checkpoint, f)
                     
-                    if break_counter >= args.break_after:
-                        break
+                if break_counter >= args.break_after:
+                    break
                 if args.num_iterations is not None:    
                     if t == args.num_iterations and args.epochs == 0:
                         break
@@ -398,8 +404,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     with open(args.checkpoint_path + '.json', 'w') as f:
                         json.dump(checkpoint, f)
                         
-                    if break_counter >= args.break_after:
-                        break
+                if break_counter >= args.break_after:
+                    break
                 if args.num_iterations is not None:        
                     if t == args.num_iterations and args.epochs == 0:
                         break 
