@@ -72,7 +72,7 @@ parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py
 parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
 parser.add_argument('--high_reward_path', default='../Data/high_reward_paths/')
 
-parser.add_argument('--checkpoint_path', default='../Data/checkpoint')
+parser.add_argument('--checkpoint_path', default='../Data/models/')
 
 #Dataloader params
 parser.add_argument('--feature_dim', default='1024,14,14')
@@ -144,6 +144,10 @@ val_loader_kwargs = {
         'batch_size': args.batch_size,
         'max_samples': args.num_val_samples,
         'num_workers': args.loader_num_workers}
+
+
+args.checkpoint_path = args.checkpoint_path + args.model_type+'_'+ \
+str(int(args.num_train_samples)//1000)+'k'
 
 with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
      ClevrDataLoader(**val_loader_kwargs) as val_loader:
