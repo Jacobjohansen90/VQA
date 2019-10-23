@@ -20,8 +20,6 @@ copy = copy.deepcopy
 """
 Some network params are set in LSTM_Model.py and Module_Net.py
 """
-#TODO Make checkpoint pathing dynamic
-#TODO Add weight update for MAPO workers?
 
 
 #%% Setup Params
@@ -166,14 +164,16 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         program_generator, pg_kwargs = func.get_program_generator(vocab, args)
         pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                         lr=args.learning_rate)
-        print('Here is the program generator:')
-        print(program_generator)
+        if args.info:
+            print('Here is the program generator:')
+            print(program_generator)
     if args.model_type == 'EE' or args.model_type == 'PG+EE':
         execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
         ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
                                         lr=args.learning_rate)
-        print('Here is the execution engine:')
-        print(execution_engine)
+        if args.info:
+            print('Here is the execution engine:')
+            print(execution_engine)
         
     
     loss_fn = torch.nn.CrossEntropyLoss().cuda()
@@ -196,7 +196,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         
         
         if args.MAPO_use_gpu == 0:
-            print('MAPO will use %d CPUs' % cpu_count)
+            if args.info:
+                print('MAPO will use %d CPUs' % cpu_count)
             func.set_mode('eval', [program_generator, execution_engine])
             execution_engine.share_memory()
             program_generator.share_memory()
@@ -284,10 +285,10 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         print('Calculating accuracy')
                     train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                    print('Train accuracy for %s is: %d' % (model_name, train_acc))
+                    print('Train accuracy for %s is: %.4f' % (model_name, train_acc))
                     val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                    print('Val accuracy for %s is %d: ' % (model_name, val_acc))
+                    print('Val accuracy for %s is %.4f: ' % (model_name, val_acc))
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
@@ -367,10 +368,10 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         print('Calculating accuracy')
                     train_acc = func.check_accuracy(args, program_generator,
                                                 execution_engine, train_loader)
-                    print('Train accuracy for %s is: %d' % (model_name, train_acc))
+                    print('Train accuracy for %s is: %.4f' % (model_name, train_acc))
                     val_acc = func.check_accuracy(args, program_generator,
                                               execution_engine, val_loader)
-                    print('Val accuracy for %s is: %d' % (model_name, val_acc))
+                    print('Val accuracy for %s is: %.4f' % (model_name, val_acc))
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
@@ -413,10 +414,10 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         print('Calculating accuracy')
     train_acc = func.check_accuracy(args, program_generator,
                                     execution_engine, train_loader)
-    print('Train accuracy for %s is: %d' % (model_name, train_acc))
+    print('Train accuracy for %s is: %.4f' % (model_name, train_acc))
     val_acc = func.check_accuracy(args, program_generator,
                                   execution_engine, val_loader)
-    print('Val accuracy for %s is: %d' % (model_name, val_acc))
+    print('Val accuracy for %s is: %.4f' % (model_name, val_acc))
     stats['train_accs'].append(train_acc)
     stats['val_accs'].append(val_acc)
     stats['val_accs_ts'].append(t)
