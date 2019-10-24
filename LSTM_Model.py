@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from Embedding_funcs import expand_embedding_vocab
-import os
 
 
 class Seq2Seq(nn.Module):
