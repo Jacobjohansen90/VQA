@@ -34,7 +34,7 @@ parser.add_argument('--exec_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG',
+parser.add_argument('--model_type', default='EE',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
@@ -43,14 +43,14 @@ parser.add_argument('--train_execution_engine', default=1, type=int)
 parser.add_argument('--num_iterations', default=None, type=int)
 parser.add_argument('--epochs', default=0, type=int) 
 #If 0 epochs we use num_iterations to determine training length
-parser.add_argument('--break_after', default=3, type=int)
+parser.add_argument('--break_after', default=5, type=int)
 #If val has not improved after break_after checks, we early stop
 
 parser.add_argument('--info', default=False)
 #Do you want all info or minimal?
 
 #Samples and shuffeling
-parser.add_argument('--num_train_samples', default=20000, type=int)
+parser.add_argument('--num_train_samples', default=700000, type=int)
 parser.add_argument('--num_val_samples', default=15000, type=int)
 parser.add_argument('--shuffle_train_data', default=True, type=int)
 
@@ -108,7 +108,7 @@ parser.add_argument('--classifier_batchnorm', default=0, type=int)
 parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
-parser.add_argument('--batch_size', default=32, type=int)
+parser.add_argument('--batch_size', default=384, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 parser.add_argument('--temperature', default=1.0, type=float)
@@ -231,10 +231,11 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     p.terminate()
             break
         elif break_counter >= args.break_after:
+            print('breaking while')
             if args.mapo:
                 for p in processes:
                     p.terminate()
-                break
+            break
         epoch += 1
         if args.info:
             print('Starting epoch %d' % epoch)
@@ -309,6 +310,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         break_counter = 0
                     else:
                         break_counter += 1
+                        print('Break counter: ', break_counter)
                         
                     checkpoint = {'args': args.__dict__,
                                   'program_generator_kwargs': pg_kwargs,
@@ -327,6 +329,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                         json.dump(checkpoint, f)
                     
                 if break_counter >= args.break_after:
+                    print('Breaking inside')
                     break
                 if args.num_iterations is not None:    
                     if t == args.num_iterations and args.epochs == 0:
