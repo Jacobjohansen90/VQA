@@ -19,6 +19,7 @@ from MAPO_workers import MAPO
 import re
 import copy
 copy = copy.deepcopy
+
 """
 Some network params are set in LSTM_Model.py and Module_Net.py
 """
@@ -30,29 +31,29 @@ parser = argparse.ArgumentParser()
 
 # Start from an existing checkpoint
 parser.add_argument('--pg_start_from', default=None)
-parser.add_argument('--exec_start_from', default=None)
+parser.add_argument('--ee_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='EE',
+parser.add_argument('--model_type', default='PG',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 
 #Training length
-parser.add_argument('--num_iterations', default=None, type=int)
+parser.add_argument('--num_iterations', default=20000, type=int)
 parser.add_argument('--epochs', default=0, type=int) 
 #If 0 epochs we use num_iterations to determine training length
-parser.add_argument('--break_after', default=5, type=int)
+parser.add_argument('--break_after', default=None, type=int)
 #If val has not improved after break_after checks, we early stop
 
 parser.add_argument('--info', default=False)
 #Do you want all info or minimal?
 
 #Samples and shuffeling
-parser.add_argument('--num_train_samples', default=700000, type=int)
+parser.add_argument('--num_train_samples', default=18000, type=int)
 parser.add_argument('--num_val_samples', default=15000, type=int)
-parser.add_argument('--shuffle_train_data', default=True, type=int)
+parser.add_argument('--shuffle_train_data', default=False, type=int)
 
 #Bloom Filter
 parser.add_argument('--bf_est_ele', default=10**6, type=int)
@@ -108,7 +109,7 @@ parser.add_argument('--classifier_batchnorm', default=0, type=int)
 parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
-parser.add_argument('--batch_size', default=384, type=int)
+parser.add_argument('--batch_size', default=64, type=int)
 parser.add_argument('--learning_rate', default=5e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 parser.add_argument('--temperature', default=1.0, type=float)
@@ -184,7 +185,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     
     stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
              'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
-             'best_val_acc': -1, 'best_model_t': 0}
+             'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}
     
     t, epoch, reward_moving_avg = 0,0,0
     
@@ -214,7 +215,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 p.start()    
                 processes.append(p)
         else:
-            raise KeyError('Not implemented')
+            raise KeyError('MAPO does not support actors on GPUs')
             #TODO: Implement GPU MAPO
     _loss = []
     break_counter = 0
@@ -230,8 +231,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 for p in processes:
                     p.terminate()
             break
-        elif break_counter >= args.break_after:
-            print('breaking while')
+        elif (args.break_after is not None) and (break_counter >= args.break_after):
             if args.mapo:
                 for p in processes:
                     p.terminate()
@@ -298,19 +298,20 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
-                    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f'  \
-                          % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc))
-                    _loss = []
-
+                    stats['epoch'].append(epoch)
                     if val_acc > stats['best_val_acc']:
                         stats['best_val_acc'] = val_acc
                         stats['best_model_t'] = t
                         best_pg_state = func.get_state(program_generator)
                         best_ee_state = func.get_state(execution_engine)
                         break_counter = 0
-                    else:
+                        improved_val = "+"
+                    else: 
                         break_counter += 1
-                        print('Break counter: ', break_counter)
+                        improved_val = "-"
+                    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f ("%s")'  \
+                          % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc, improved_val))
+                    _loss = []
                         
                     checkpoint = {'args': args.__dict__,
                                   'program_generator_kwargs': pg_kwargs,
@@ -328,9 +329,9 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     with open(args.checkpoint_path + '.json', 'w') as f:
                         json.dump(checkpoint, f)
                     
-                if break_counter >= args.break_after:
-                    print('Breaking inside')
-                    break
+                if args.break_after is not None:
+                    if break_counter >= args.break_after:
+                        break
                 if args.num_iterations is not None:    
                     if t == args.num_iterations and args.epochs == 0:
                         break
@@ -386,7 +387,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     stats['train_accs'].append(train_acc)
                     stats['val_accs'].append(val_acc)
                     stats['val_accs_ts'].append(t)
-                    
+                    stats['epoch'].append(epoch)
+
                     if val_acc > stats['best_val_acc']:
                         stats['best_val_acc'] = val_acc
                         stats['best_model_t'] = t

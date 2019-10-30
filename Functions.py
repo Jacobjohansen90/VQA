@@ -80,7 +80,7 @@ def load_execution_engine(path, verbose=True):
 
 def get_execution_engine(vocab, args):
     if args.exec_start_from is not None:
-        ee, kwargs = load_execution_engine(args.exec_start_from)
+        ee, kwargs = load_execution_engine(args.ee_start_from)
     else:
         kwargs = {'vocab':vocab,
                   'feature_dim': parse_int_list(args.feature_dim),

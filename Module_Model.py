@@ -79,7 +79,7 @@ class ModuleNet(nn.Module):
                  classifier_fc_layers=(1024,),
                  classifier_batchnorm=False,
                  classifier_dropout=0,
-                 verbose=False):
+                 verbose=True):
         super(ModuleNet, self).__init__()
         
         self.stem = ConcatBlock.build_stem(feature_dim[0], module_dim,
