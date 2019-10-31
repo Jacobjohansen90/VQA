@@ -30,21 +30,21 @@ Some network params are set in LSTM_Model.py and Module_Net.py
 parser = argparse.ArgumentParser()
 
 # Start from an existing checkpoint
-parser.add_argument('--pg_start_from', default=None)
+parser.add_argument('--pg_start_from', default='../Data/models/PG_18k.pt')
 parser.add_argument('--ee_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
 # What type of model to use and which parts to train
-parser.add_argument('--model_type', default='PG',
+parser.add_argument('--model_type', default='EE',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
 
 #Training length
-parser.add_argument('--num_iterations', default=20000, type=int)
+parser.add_argument('--num_iterations', default=200000, type=int)
 parser.add_argument('--epochs', default=0, type=int) 
 #If 0 epochs we use num_iterations to determine training length
-parser.add_argument('--break_after', default=None, type=int)
+parser.add_argument('--break_after', default=5, type=int)
 #If val has not improved after break_after checks, we early stop
 
 parser.add_argument('--info', default=False)
@@ -110,7 +110,7 @@ parser.add_argument('--classifier_dropout', default=0, type=float)
 
 # Optimization options
 parser.add_argument('--batch_size', default=64, type=int)
-parser.add_argument('--learning_rate', default=5e-4, type=float)
+parser.add_argument('--learning_rate', default=1e-4, type=float)
 parser.add_argument('--reward_decay', default=0.9, type=float)
 parser.add_argument('--temperature', default=1.0, type=float)
 
@@ -165,13 +165,13 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     pg_best_state, ee_best_state = None, None
     
     #Set up model
-    if args.model_type == 'PG' or args.model_type == 'PG+EE':
-        program_generator, pg_kwargs = func.get_program_generator(vocab, args)
-        pg_optimizer = torch.optim.Adam(program_generator.parameters(),
+    #if args.model_type == 'PG' or args.model_type == 'PG+EE':
+    program_generator, pg_kwargs = func.get_program_generator(vocab, args)
+    pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                         lr=args.learning_rate)
-        if args.info:
-            print('Here is the program generator:')
-            print(program_generator)
+    if args.info:
+        print('Here is the program generator:')
+        print(program_generator)
     if args.model_type == 'EE' or args.model_type == 'PG+EE':
         execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
         ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
@@ -255,8 +255,9 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     loss.backward()
                     pg_optimizer.step()
                 elif args.model_type == 'EE':
-                    ee_optimizer.zero_grad()                
-                    scores = execution_engine(feats_var, programs_var)
+                    ee_optimizer.zero_grad()  
+                    programs_pred = program_generator.reinforce_sample(questions_var)
+                    scores = execution_engine(feats_var, programs_pred)
                     loss = loss_fn(scores, answers_var)
                     loss.backward()
                     ee_optimizer.step()
@@ -309,7 +310,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                     else: 
                         break_counter += 1
                         improved_val = "-"
-                    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f ("%s")'  \
+                    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f (%s)'  \
                           % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc, improved_val))
                     _loss = []
                         

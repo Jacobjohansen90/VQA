@@ -79,7 +79,7 @@ def load_execution_engine(path, verbose=True):
     return model, kwargs
 
 def get_execution_engine(vocab, args):
-    if args.exec_start_from is not None:
+    if args.ee_start_from is not None:
         ee, kwargs = load_execution_engine(args.ee_start_from)
     else:
         kwargs = {'vocab':vocab,
