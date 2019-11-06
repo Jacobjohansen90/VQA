@@ -30,7 +30,7 @@ Some network params are set in LSTM_Model.py and Module_Net.py
 parser = argparse.ArgumentParser()
 
 # Start from an existing checkpoint
-parser.add_argument('--pg_start_from', default='../Data/models/PG_18k.pt')
+parser.add_argument('--pg_start_from', default=None)
 parser.add_argument('--ee_start_from', default=None)
 parser.add_argument('--mapo', default=False)
 
@@ -44,14 +44,14 @@ parser.add_argument('--train_execution_engine', default=1, type=int)
 parser.add_argument('--num_iterations', default=200000, type=int)
 parser.add_argument('--epochs', default=0, type=int) 
 #If 0 epochs we use num_iterations to determine training length
-parser.add_argument('--break_after', default=5, type=int)
+parser.add_argument('--break_after', default=10, type=int)
 #If val has not improved after break_after checks, we early stop
 
 parser.add_argument('--info', default=False)
 #Do you want all info or minimal?
 
 #Samples and shuffeling
-parser.add_argument('--num_train_samples', default=18000, type=int)
+parser.add_argument('--num_train_samples', default=None, type=int) #None = All
 parser.add_argument('--num_val_samples', default=15000, type=int)
 parser.add_argument('--shuffle_train_data', default=False, type=int)
 
@@ -148,13 +148,15 @@ val_loader_kwargs = {
         'max_samples': args.num_val_samples,
         'num_workers': args.loader_num_workers}
 
-if args.model_type == "PG" or args.model_type == "EE":
+if args.model_type == "PG":
     model_name = args.model_type+'_'+str(int(args.num_train_samples)//1000)+'k'
 else:
     model_name = args.model_type+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
 
 args.checkpoint_path = args.checkpoint_path + model_name
 
+if args.num_train_samples == None:
+    args.num_train_samples = 10**6
 
 with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
      ClevrDataLoader(**val_loader_kwargs) as val_loader:
@@ -216,7 +218,7 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
                 processes.append(p)
         else:
             raise KeyError('MAPO does not support actors on GPUs')
-            #TODO: Implement GPU MAPO
+            #TODO: Implement GPU MAPO?
     _loss = []
     break_counter = 0
     func.set_mode('train', [program_generator, execution_engine])
