@@ -39,6 +39,7 @@ parser.add_argument('--model_type', default='EE',
         choices=['PG', 'EE', 'PG+EE'])
 parser.add_argument('--train_program_generator', default=1, type=int)
 parser.add_argument('--train_execution_engine', default=1, type=int)
+parser.add_argument('--balanced_loss', deault=False)
 
 #Training length
 parser.add_argument('--num_iterations', default=200000, type=int)
@@ -67,6 +68,8 @@ parser.add_argument('--MAPO_use_GPU', default=0, type=int) #GPU not implemented
 parser.add_argument('--MAPO_sample_argmax', default=0, type=int)
 parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
 parser.add_argument('--MAPO_alpha', default=0.1, type=float)
+parser.add_argument('--MAPO_split', default=2/3, type=float) 
+#If --MAPO_split is 1 we do not assume program generator is correct
 
 #Datapaths
 parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_train')
@@ -123,10 +126,6 @@ parser.add_argument('--checkpoint_every', default=1000, type=int)
 args = parser.parse_args()
 vocab = func.load_vocab(args.vocab_json)
 if args.mapo:
-    bf = func.BloomFilter(est_ele=args.bloom_est_elements,
-                      false_pos=args.bloom_false_positive_rate,
-                      load_path=args.bloom_load_path,
-                      percentage=args.bloom_percentage)
     cpu_count = mp.cpu_count()
     if args.model_type != 'PG+EE':
         raise KeyError("MAPO can only train with both PG and EE. Change model_type")
@@ -156,7 +155,7 @@ else:
 args.checkpoint_path = args.checkpoint_path + model_name
 
 if args.num_train_samples == None:
-    args.num_train_samples = 10**6
+    args.num_train_samples = 10**9
 
 with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
      ClevrDataLoader(**val_loader_kwargs) as val_loader:
@@ -167,7 +166,6 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
     pg_best_state, ee_best_state = None, None
     
     #Set up model
-    #if args.model_type == 'PG' or args.model_type == 'PG+EE':
     program_generator, pg_kwargs = func.get_program_generator(vocab, args)
     pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                         lr=args.learning_rate)
@@ -184,6 +182,8 @@ with ClevrDataLoader(**train_loader_kwargs) as train_loader, \
         
     
     loss_fn = torch.nn.CrossEntropyLoss().cuda()
+    if args.balanced_loss:
+        
     
     stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
              'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
