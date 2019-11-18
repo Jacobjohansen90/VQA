@@ -14,7 +14,8 @@ from torch.autograd import Variable
 from Preprocess_funcs import decode
 import numpy as np
 from probables import CountingBloomFilter as CBF
-
+from DataLoader import ClevrDataLoader
+import copy
 #Vocab funcs
 def invert_dict(d):
     return {v: k for k, v in d.items()}
@@ -70,17 +71,17 @@ def get_program_generator(vocab, args):
     return pg, kwargs
 
 #Execution Engine
-def load_execution_engine(path, verbose=True):
+def load_execution_engine(path, info):
     checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
     kwargs = checkpoint['execution_engine_kwargs']
     state = checkpoint['execution_engine_state']
-    model = ModuleNet(**kwargs)
+    model = ModuleNet(info, **kwargs)
     model.load_state_dict(state)
     return model, kwargs
 
 def get_execution_engine(vocab, args):
     if args.ee_start_from is not None:
-        ee, kwargs = load_execution_engine(args.ee_start_from)
+        ee, kwargs = load_execution_engine(args.ee_start_from, args.info)
     else:
         kwargs = {'vocab':vocab,
                   'feature_dim': parse_int_list(args.feature_dim),
@@ -93,8 +94,9 @@ def get_execution_engine(vocab, args):
                   'classifier_downsample': args.classifier_downsample,
                   'classifier_fc_layers': parse_int_list(args.classifier_fc_dims),
                   'classifier_batchnorm': args.classifier_batchnorm,
-                  'classifier_dropout': args.classifier_dropout}
-        ee = ModuleNet(**kwargs)
+                  'classifier_dropout': args.classifier_dropout,
+                  'info': args.info}
+        ee = ModuleNet(args.info, **kwargs)
     ee.cuda()
     ee.train()
     return ee, kwargs
@@ -163,40 +165,25 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
     return acc
-
-#Bloom Filter Functions
-#TODO Not in use
-class BloomFilter:
-    def __init__(self, est_ele=10**6, false_pos=0.01, load_path=None,
-                 percentage=0.05):
-        self.bf = CBF(est_elements=est_ele, false_positive_rate=false_pos,
-                      filepath=load_path)
-        self.random_bf = CBF(est_elements=est_ele, false_positive_rate=false_pos,
-                             filepath=load_path)
-        self.percentage = percentage
-    def check(self, string):
-        if self.bf.check(string) == 0:
-            return False
-        else:
-            return True
-
-    def add(self, string):
-        self.bf.add(string)
-        if np.random.uniform() > self.percentage:
-            self.random_bf.add(string)
-    
-    def del_random(self):
-        self.bf = self.bf.intersection(self.random_bf)
-
-    def save(self, save_path):
-        self.bf.export(save_path)
-        print('Bloom filter saved to: %s' % save_path)
     
 #MAPO Functions  
 def load_vocab_MAPO(args):
     path = args.execution_engine
     return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
 
+def h5py_loader(loader_kwargs, loader_que, max_size=50):
+    loader = ClevrDataLoader(**loader_kwargs)
+    wait = True
+    while True:
+        t = 0        
+        for batch_ in loader:
+            batch = copy.deepcopy(batch_)
+            t += 1
+            while wait:
+                if loader_que.qsize() < max_size:
+                    wait = False
+            loader_que.put(batch)
+            wait = True
     
     
 

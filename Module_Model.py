@@ -68,7 +68,8 @@ class ConcatBlock(nn.Module):
         return nn.Sequential(*layers)
     
 class ModuleNet(nn.Module):
-    def __init__(self, vocab, feature_dim=(1024, 14, 14),
+    def __init__(self, info, vocab, 
+                 feature_dim=(1024, 14, 14),
                  stem_num_layers=2,
                  stem_batchnorm=False,
                  module_dim=128,
@@ -78,15 +79,14 @@ class ModuleNet(nn.Module):
                  classifier_downsample='maxpool2',
                  classifier_fc_layers=(1024,),
                  classifier_batchnorm=False,
-                 classifier_dropout=0,
-                 verbose=True):
+                 classifier_dropout=0):
         super(ModuleNet, self).__init__()
         
         self.stem = ConcatBlock.build_stem(feature_dim[0], module_dim,
                                     num_layers=stem_num_layers,
                                     with_batchnorm=stem_batchnorm)
         
-        if verbose:
+        if info:
             print('Here is my stem:')
             print(self.stem)
         
@@ -99,7 +99,7 @@ class ModuleNet(nn.Module):
                                            with_batchnorm=classifier_batchnorm,
                                            dropout=classifier_dropout)
 
-        if verbose:
+        if info:
             print('Here is my classifier:')
             print(self.classifier)
             

@@ -8,7 +8,6 @@ Created on Thu Oct 10 11:32:31 2019
 
 import torch
 from torch.autograd import Variable
-from DataLoader import ClevrDataLoader
 from probables import CountingBloomFilter as CBF
 import os
 import random
@@ -16,88 +15,82 @@ import random
 #%% Options
 
 
-def MAPO(args, pg, ee, vocab, que):
-    loader_kwargs = {'question_h5': args.train_questions_h5,
-                     'feature_h5': args.train_features_h5,
-                     'vocab': vocab,
-                     'batch_size': args.batch_size}
-    with ClevrDataLoader(**loader_kwargs) as loader:
-        dtype = torch.FloatTensor
-        if args.MAPO_use_GPU == 1:
-            dtype = torch.cuda.FloatTensor
-        pg.type(dtype)
-        ee.type(dtype)
-   
-        for batch in loader:
-            for i in range(args.batch_size):
-                question, _, feats, answer, _, _ = [item[i] for item in batch]
-                question = question.unsqueeze(0)
-                q_name = '-'.join(str(e) for e in question.numpy() if e != 0)
-                bf_path = args.bf_load_path + '/' + q_name
-                directory = args.high_reward_path+q_name+'/'
-                try:
-                    bf = CBF(filepath=bf_path)
-                except:
-                    bf = CBF(est_elements=args.bf_est_ele, 
-                             false_positive_rate=args.bf_false_pos_rate)
-                feats = feats.unsqueeze(0)
-                answer = answer.unsqueeze(0)
-                with torch.no_grad():
-                    question_var = Variable(question.type(dtype).long())
-                    feats_var = Variable(feats.type(dtype))
-                program_pred, bf, m_out, m_probs, m_m = pg.reinforce_sample_MAPO(question_var, bf, 
-                                                            temperature=args.temperature, 
-                                                            argmax=args.MAPO_sample_argmax)
-                bf.export(bf_path)                
-                scores = ee(feats_var, program_pred)
-                _, pred = scores.data.cpu().max(1)
+def MAPO(args, pg, ee, loader_que, vocab, que, number):
+    if args.info:
+        print('MAPO process %s started' % str(number))
+    
+    dtype = torch.FloatTensor
+    if args.MAPO_use_GPU == 1:
+        dtype = torch.cuda.FloatTensor
+    pg.type(dtype)
+    ee.type(dtype)
+    while True:
+        batch = loader_que.get()
+        for i in range(args.batch_size):
+            question, _, feats, answer, _, _ = [item[i] for item in batch]
+            q_name = '-'.join(str(e) for e in question.numpy() if e != 0)
+            question = question.unsqueeze(0)
+            bf_path = args.bf_load_path + '/' + q_name
+            directory = args.high_reward_path+q_name+'/'
+            try:
+                bf = CBF(filepath=bf_path)
+            except:
+                bf = CBF(est_elements=args.bf_est_ele, 
+                         false_positive_rate=args.bf_false_pos_rate)
+            feats = feats.unsqueeze(0)
+            answer = answer.unsqueeze(0)
+            with torch.no_grad():
+                question_var = Variable(question.type(dtype).long())
+                feats_var = Variable(feats.type(dtype))
+                
+            if random.uniform(0,1) < args.MAPO_check_bf:
+                if args.info:
+                    print('Checking bloom filter is relevant')
+                program_pred = pg.reinforce_sample(question_var, argmax=args.MAPO_check_bf_argmax)
+                program_name = '-'.join(str(e) for e in program_pred.tolist())
+                if bf.check(program_name):
+                    scores = ee(feats_var, program_pred)
+                    _, pred = scores.data.cpu().max(1)
+                    if pred == answer:
+                        if program_name not in os.listdir(directory): 
+                            os.remove(bf_path+'/')
+                    else:
+                        if program_name+'.pt' in os.listdir(directory):
+                            os.remove(directory+program_name+'.pt')
+                            for program in os.listdir(directory):
+                                program_pred = torch.load(directory+program)
+                                scores = ee(feats_var, program_pred)
+                                _, pred = scores.data.cpu().max(1)
+                                if pred != answer:
+                                    os.remove(directory+program)                    
+            program_pred, bf, program_name = pg.reinforce_novel_sample(question_var, bf, 
+                                                         temperature=args.temperature, 
+                                                         argmax=args.MAPO_sample_argmax)
+            bf.export(bf_path)     
+            scores = ee(feats_var, program_pred)
+            _, pred = scores.data.cpu().max(1)                
+            if pred == answer:
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                if pred == answer:
-                    name = 1
-                    torch.save(program_pred, directory + name)
-                    high_reward = True
+                torch.save(program_pred, directory + program_name+'.pt')
+                #Current prediction is high reward path
+                que.put((question_var, feats_var, program_pred, answer))
+                #Sample unseen (most likely non reward) path
+                bf = CBF(filepath=bf_path)
+                #This is not what we want, we wanna sample most prob non high reward path
+                program_pred, bf = pg.sample_non_high_reward(question_var, bf, 
+                                                             temperature=args.temperature, 
+                                                             argmax=args.MAPO_sample_argmax)
+                que.put((question_var, feats_var, program_pred, answer))
+
+            else:
+                if len(os.listdir(directory)) == 0:
+                    #If no high reward paths yet, skip question
+                    continue
                 else:
-                    high_reward = False
-                #Random sample a none-reward output
-                if high_reward:
-                    while True:
-                        program_pred, bf, m_out, m_probs, m_m = \
-                        pg.reinforce_novel_sample(question_var, bf, 
-                                                 temperature=args.temperature, 
-                                                 argmax=args.MAPO_sample_argmax)
-                        scores = ee(feats_var, program_pred)
-                        _, pred = scores.data.cpu().max(1)
-                        #TODO: Then sample another sample
-                        if pred != answer:
-                            que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
-                            break
-                #Random sample a high-reward output                    
-                else:
-                    que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
-                    if len(os.listdir(directory)) == 0:
-                        continue
-                        #TODO: What to do if no high reward paths?
-                    else:
-                        question = torch.zeros(args.length_output)
-                        q = random.choice(os.listdir(directory))
-                        program_pred = torch.load(directory + q)
-                        q = q.split('-')
-                        for i in len(q):
-                            question[i] = int(q[i])
-                        with torch.no_grad():
-                            question_var = Variable(question)
-                        m_out, m_probs, m_m = pg.program_to_probs(question_var, program_pred,
-                                                                       temperature=args.temperature)                    
-                        que.put((feats_var, program_pred, answer, m_out, m_probs, m_m))
-                    
-                    
-                    
-                    
-                
-                
-        
-        
-        
-        
-        
+                    #Our current predictions is non reward path
+                    que.put((question_var, feats_var, program_pred, answer))
+                    #Sample high reward path
+                    q = random.choice(os.listdir(directory))
+                    program_pred = torch.load(directory + q)
+                    que.put((question_var, feats_var, program_pred, answer))

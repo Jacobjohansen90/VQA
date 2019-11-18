@@ -86,9 +86,7 @@ class Seq2Seq(nn.Module):
         embed = self.encoder_embed(x)
         h0 = Variable(torch.zeros(L, N, H).type_as(embed.data))
         c0 = Variable(torch.zeros(L, N, H).type_as(embed.data))
-        
         out, _ = self.encoder_LSTM(embed, (h0, c0))
-        
         #Gets the hidden state for the last non NULL value
         idx = idx.view(N, 1, 1).expand(N, 1, H)
         return out.gather(1, idx).view(N, H)
@@ -115,14 +113,11 @@ class Seq2Seq(nn.Module):
     def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, 
                               argmax=True):
         N, T = x.size(0), self.max_length
-        assert N == 1
+        assert N == 1       
         encoded = self.encoder(x)
         y = torch.LongTensor(N, T).fill_(self.NULL)
         cur_input = Variable(x.data.new(N,1).fill_(self.START))
         h, c = None, None
-        multinomial_outputs = []
-        multinomial_probs = []
-        multinomial_m = []
         t = 0
         while t < T-1:
             logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
@@ -130,35 +125,64 @@ class Seq2Seq(nn.Module):
             probs = F.softmax(logprobs.view(N, -1), dim=1)
             m = torch.distributions.Categorical(probs)
             if argmax:
-                _, cur_input = probs.max(1)
+                _, cur_output = probs.max(1)
             else:
                 cur_output = m.sample()
             y[:, t] = cur_output.data.cpu()
-            prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
-            while bloom_filter.check(prg_tmp) and sum(probs) > 0:
-                probs[cur_output] = 0
+            prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
+            while bloom_filter.check(prg_tmp) and torch.sum(probs) > 0:
+                probs[:,cur_output] = 0
                 m = torch.distributions.Categorical(probs)
                 if argmax:
                     _, cur_output = probs.max(1) 
                 else:
                     cur_output = m.sample()
                 y[:, t] = cur_output.data.cpu()
-                prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
+                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
             if bloom_filter.check(prg_tmp) == 0:
                 t += 1
                 cur_input = cur_output.unsqueeze(1)
             else:
-                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
+                prg_tmp = '-'.join(str(e) for e in y[0,:t-1].tolist())
                 bloom_filter.add(prg_tmp)
-                break
+                t -= 1
             if cur_output.data.cpu() == self.END:
                 bloom_filter.add(prg_tmp)
                 break
-            multinomial_outputs.append(cur_output)
-            multinomial_probs.append(probs)
-            multinomial_m.append(m)
-        return Variable(y.type_as(x.data)), bloom_filter, multinomial_outputs, \
-                multinomial_probs, multinomial_m
+        return Variable(y.type_as(x.data)), bloom_filter, prg_tmp 
+    
+    def sample_non_high_reward(self, x, bloom_filter, temperature=1.0, argmax=False):
+        N, T = x.size(0), self.max_length
+        assert N == 1
+        encoded = self.encoder(x)
+        y = torch.LongTensor(N, T).fill_(self.NULL)
+        cur_input = Variable(x.data.new(N,1).fill_(self.START))
+        h, c = None, None
+        self.multinomial_outputs = []
+        self.multinomial_probs = []
+        self.multinomial_m = []
+        for t in range(T):
+            logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
+            logprobs = logprobs / temperature
+            probs = F.softmax(logprobs.view(N, -1), dim=1)
+            m = torch.distributions.Categorical(probs)
+            if argmax:
+                _, cur_output = probs.max(1)
+            else:
+                cur_output = m.sample()
+            self.multinomial_outputs.append(cur_output)
+            self.multinomial_probs.append(probs)
+            self.multinomial_m.append(m)
+            y[:, t] = cur_output.data.cpu()
+            cur_input = cur_output.unsqueeze(1)
+            if cur_output.data.cpu() == self.END:
+                break
+        return Variable(y.type_as(x.data))
+        #TODO: You are here
+        #Does it make sense to sample non_reward if prop of that happening is low?
+        #Else they will automatically get sampled
+        
+        
     
     def program_to_probs(self, questions, program_preds, temperature):
         N = questions.size(0)
@@ -166,7 +190,6 @@ class Seq2Seq(nn.Module):
         encoded = self.encoder(questions)
         cur_input = Variable(questions.data.new(N,1).fill_(self.START))
         h, c = None, None
-        #w = 1
         multinomial_output = []
         multinomial_probs = []
         multinomial_m = []
@@ -178,7 +201,6 @@ class Seq2Seq(nn.Module):
             multinomial_output.append(program_preds[:,t])
             multinomial_probs.append(probs)
             multinomial_m.append(m)
-            #w *= probs[program_preds[:,t]]
             cur_input = program_preds[:,t]
         return multinomial_output, multinomial_probs, multinomial_m
         
@@ -258,8 +280,8 @@ class Seq2Seq(nn.Module):
             loss.backward(retain_graph=True)
             
     def reinforce_backward_MAPO(self, multinomial_outputs, multinomial_probs,
-                                multinomial_m, reward, w, output_mask=None):
-        assert multinomial_outputs is not None, 'Must call reinforce sample MAPO first'
+                                multinomial_m, reward, output_mask=None):
+        assert multinomial_outputs is not None, 'Must call reinforce novel sample first'
         def gen_hook(mask):
             def hook(grad):
                 return grad * mask.contiguous().view(-1,1).expand_as(grad)
@@ -274,7 +296,7 @@ class Seq2Seq(nn.Module):
             sampled_output = multinomial_outputs[i]
             m = multinomial_m[i]
             loss = -(m.log_prob(sampled_output)*reward).sum()
-            loss.backward(retain_graph=True)    
+            loss.backward(retain_graph=True)
             
     def sample(self, x, max_length=50):
         self.multinomial_outputs = None
