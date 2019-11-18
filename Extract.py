@@ -9,7 +9,7 @@ Created on Mon Nov 11 14:27:41 2019
 import json
 import matplotlib.pyplot as plt
 
-model = 'PG+EE_18k'
+model = 'EE_10k'
 show = True
 path = '/home/jacob/Desktop/Specialle/Data/models/'+model+'.json'
 

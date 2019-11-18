@@ -181,6 +181,9 @@ class Seq2Seq(nn.Module):
         #TODO: You are here
         #Does it make sense to sample non_reward if prop of that happening is low?
         #Else they will automatically get sampled
+        #ALSO!
+        #Instead of sampling random when assumign PG is correct and training EE
+        #sample from the samples that does not have a high reward path yet!
         
         
     
