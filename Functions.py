@@ -12,8 +12,6 @@ from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
 from torch.autograd import Variable
 from Preprocess_funcs import decode
-import numpy as np
-from probables import CountingBloomFilter as CBF
 from DataLoader import ClevrDataLoader
 import copy
 #Vocab funcs
@@ -94,8 +92,7 @@ def get_execution_engine(vocab, args):
                   'classifier_downsample': args.classifier_downsample,
                   'classifier_fc_layers': parse_int_list(args.classifier_fc_dims),
                   'classifier_batchnorm': args.classifier_batchnorm,
-                  'classifier_dropout': args.classifier_dropout,
-                  'info': args.info}
+                  'classifier_dropout': args.classifier_dropout}
         ee = ModuleNet(args.info, **kwargs)
     ee.cuda()
     ee.train()

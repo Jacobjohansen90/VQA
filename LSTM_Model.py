@@ -110,8 +110,7 @@ class Seq2Seq(nn.Module):
         
         return output_logprobs, ht, ct
     
-    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, 
-                              argmax=True):
+    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, argmax=True):
         N, T = x.size(0), self.max_length
         assert N == 1       
         encoded = self.encoder(x)
@@ -129,21 +128,23 @@ class Seq2Seq(nn.Module):
             else:
                 cur_output = m.sample()
             y[:, t] = cur_output.data.cpu()
-            prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
-            while bloom_filter.check(prg_tmp) and torch.sum(probs) > 0:
+            prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
+            while bloom_filter.check(prg_tmp):
                 probs[:,cur_output] = 0
+                if torch.sum(probs) <= 0:
+                    break
                 m = torch.distributions.Categorical(probs)
                 if argmax:
                     _, cur_output = probs.max(1) 
                 else:
                     cur_output = m.sample()
                 y[:, t] = cur_output.data.cpu()
-                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
+                prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
             if bloom_filter.check(prg_tmp) == 0:
                 t += 1
                 cur_input = cur_output.unsqueeze(1)
             else:
-                prg_tmp = '-'.join(str(e) for e in y[0,:t-1].tolist())
+                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
                 bloom_filter.add(prg_tmp)
                 t -= 1
             if cur_output.data.cpu() == self.END:
@@ -151,7 +152,7 @@ class Seq2Seq(nn.Module):
                 break
         return Variable(y.type_as(x.data)), bloom_filter, prg_tmp 
     
-    def sample_non_high_reward(self, x, bloom_filter, temperature=1.0, argmax=False):
+    def sample_non_high_reward(self, x, temperature=1.0, argmax=False):
         N, T = x.size(0), self.max_length
         assert N == 1
         encoded = self.encoder(x)
@@ -189,14 +190,13 @@ class Seq2Seq(nn.Module):
     
     def program_to_probs(self, questions, program_preds, temperature):
         N = questions.size(0)
-        assert N == 1
         encoded = self.encoder(questions)
         cur_input = Variable(questions.data.new(N,1).fill_(self.START))
         h, c = None, None
         multinomial_output = []
         multinomial_probs = []
         multinomial_m = []
-        for t in range(program_preds.shape(1)):
+        for t in range(program_preds.shape[1]):
             logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
             logprobs = logprobs / temperature
             probs = F.softmax(logprobs.view(N, -1), dim=1)
@@ -204,7 +204,7 @@ class Seq2Seq(nn.Module):
             multinomial_output.append(program_preds[:,t])
             multinomial_probs.append(probs)
             multinomial_m.append(m)
-            cur_input = program_preds[:,t]
+            cur_input = program_preds[:,t:t+1]
         return multinomial_output, multinomial_probs, multinomial_m
         
     def reinforce_sample(self, x, temperature=1.0, argmax=False):

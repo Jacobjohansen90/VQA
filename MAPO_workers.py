@@ -74,23 +74,22 @@ def MAPO(args, pg, ee, loader_que, vocab, que, number):
                     os.makedirs(directory)
                 torch.save(program_pred, directory + program_name+'.pt')
                 #Current prediction is high reward path
-                que.put((question_var, feats_var, program_pred, answer))
+                que.put((question_var, feats_var, program_pred, answer, torch.tensor([1])))
                 #Sample unseen (most likely non reward) path
                 bf = CBF(filepath=bf_path)
                 #This is not what we want, we wanna sample most prob non high reward path
-                program_pred, bf = pg.sample_non_high_reward(question_var, bf, 
-                                                             temperature=args.temperature, 
-                                                             argmax=args.MAPO_sample_argmax)
-                que.put((question_var, feats_var, program_pred, answer))
+                program_pred = pg.sample_non_high_reward(question_var, 
+                                                         temperature=args.temperature, 
+                                                         argmax=args.MAPO_sample_argmax)
+                que.put((question_var, feats_var, program_pred, answer, torch.tensor([1])))
 
             else:
-                if len(os.listdir(directory)) == 0:
-                    #If no high reward paths yet, skip question
-                    continue
+                if not os.path.exists(directory):
+                    que.put((question_var, feats_var, program_pred, answer, torch.tensor([0])))
                 else:
                     #Our current predictions is non reward path
-                    que.put((question_var, feats_var, program_pred, answer))
+                    que.put((question_var, feats_var, program_pred, answer, torch.tensor([1])))
                     #Sample high reward path
                     q = random.choice(os.listdir(directory))
                     program_pred = torch.load(directory + q)
-                    que.put((question_var, feats_var, program_pred, answer))
+                    que.put((question_var, feats_var, program_pred, answer, torch.tensor([1])))

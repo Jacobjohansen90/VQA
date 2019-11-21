@@ -21,12 +21,7 @@ import datetime
 
 import time
 
-
-
-
-"""
-Some network params are set in LSTM_Model.py and Module_Net.py
-"""
+#TODO: Make dynamic loader for EE, loading only q's with no high reward paths
 
 #%% Setup Params
 if __name__ == '__main__':
@@ -35,8 +30,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     # Start from an existing checkpoint
-    parser.add_argument('--pg_start_from', default="../Data/models/PG_15k.pt")
-    parser.add_argument('--ee_start_from', default="../Data/models/EE_15k.pt")
+    parser.add_argument('--pg_start_from', default="../Data/models/PG_10k.pt")
+    parser.add_argument('--ee_start_from', default="../Data/models/EE_10k.pt")
     parser.add_argument('--mapo', default=True)
     
     # What type of model to use and which parts to train
@@ -44,7 +39,7 @@ if __name__ == '__main__':
             choices=['PG', 'EE', 'PG+EE'])
     parser.add_argument('--train_pg', default=1, type=int)
     parser.add_argument('--train_ee', default=1, type=int)
-    parser.add_argument('--balanced_loss', default=True)
+    parser.add_argument('--balanced_loss', default=False)
     
     #Training length
     parser.add_argument('--num_iterations', default=200000, type=int)
@@ -62,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--shuffle_train_data', default=False, type=int)
     
     #Bloom Filter
-    parser.add_argument('--bf_est_ele', default=10**6, type=int)
+    parser.add_argument('--bf_est_ele', default=10**3, type=int)
     parser.add_argument('--bf_false_pos_rate', default=0.01, type=float)
     parser.add_argument('--bf_load_path', default='../Data/bloom_filters')
     
@@ -70,13 +65,11 @@ if __name__ == '__main__':
     
     #MAPO
     parser.add_argument('--MAPO_use_GPU', default=0, type=int) 
-    parser.add_argument('--MAPO_sample_argmax', default=0, type=int)
-    parser.add_argument('--MAPO_score_cutoff', default=0, type=float)
-    #parser.add_argument('--MAPO_alpha', default=0.1, type=float) #TODO Not in use?
+    parser.add_argument('--MAPO_sample_argmax', default=True)
     parser.add_argument('--MAPO_check_bf', default=0.01, type=float)
     parser.add_argument('--MAPO_check_bf_argmax', default=False)
-    parser.add_argument('--MAPO_split', default=2/3, type=float)
-    #If --MAPO_split is None we do not assume program generator is correct
+    parser.add_argument('--MAPO_split', default=None, type=float)
+    #How many samples should train PG vs assume PG is correct and only train EE
     
     #Datapaths
     parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_train')
@@ -127,7 +120,7 @@ if __name__ == '__main__':
     # Output options
     parser.add_argument('--randomize_checkpoint_path', type=int, default=0)
     parser.add_argument('--record_loss_every', type=int, default=1)
-    parser.add_argument('--checkpoint_every', default=1000, type=int)
+    parser.add_argument('--checkpoint_every', default=100, type=int)
     
     #%%Train loop
     args = parser.parse_args()
@@ -208,7 +201,7 @@ if __name__ == '__main__':
         class_weights = class_weights.cuda()
 
     if args.balanced_loss:
-        loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
+        loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights).cuda()
     else:
         loss_fn = torch.nn.CrossEntropyLoss().cuda()
         
@@ -230,7 +223,7 @@ if __name__ == '__main__':
             que = mp.Queue()
             loader_que = mp.Queue()
             
-            for cpu in range(cpu_count-3):
+            for cpu in range(cpu_count-1):
                 p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
                                                   execution_engine.cpu(), 
                                                   loader_que, vocab, que, cpu))
@@ -249,10 +242,11 @@ if __name__ == '__main__':
                                 
         else:
             raise KeyError('MAPO does not support actors on GPUs')
-            #TODO: Implement GPU MAPO?
     _loss = []
     break_counter = 0
     func.set_mode('train', [program_generator, execution_engine])
+    program_generator.cuda()
+    execution_engine.cuda()
     while True:
         if epoch == args.epochs and args.epochs != 0:
             if args.mapo:
@@ -373,71 +367,48 @@ if __name__ == '__main__':
         #MAPO
         else:
             idle_t = []
-            epoch = True #TODO Make this check something
-            while epoch:
+            while True:
                 t += 1
                 i = 0
-                if args.MAPO_split is None:
-                    MAPO_amount = 1
-                else:
-                    MAPO_amount = int(1/args.MAPO_split)
-                for j in range(MAPO_amount):
-                    MAPO_feats_var = torch.zeros(args.batch_size, 1024, 14, 14) #Todo Automate 1024x14x14
-                    MAPO_programs_pred = torch.zeros(args.batch_size, args.length_output)
-                    MAPO_ans = torch.zeros(args.batch_size)
-                    MAPO_q = torch.zeros(args.batch_size, 46) #Automate q length
-                    MAPO_m_out = []
-                    MAPO_m_probs = []
-                    MAPO_m_m = []
-                    t = time.time()
-                    while i < args.batch_size:
-                        q_tmp, feat_tmp, program_tmp, ans_tmp = que.get()
-                        MAPO_feats_var[i], MAPO_programs_pred[i] = feat_tmp.clone(), program_tmp.clone()
-                        MAPO_q[i], MAPO_ans[i] = ans_tmp.clone(), q_tmp.clone()
-                        del feat_tmp, program_tmp, q_tmp, ans_tmp
-                        #We need to release this memory back to the MAPO workers
-                        m_out, m_probs, m_m = program_generator.program_to_probs(MAPO_q[i], MAPO_programs_pred[i],
-                                                                                 args.temperature)
-                        MAPO_m_out.append(m_out)
-                        MAPO_m_probs.append(m_probs)
-                        MAPO_m_m.append(m_m)
-                        i += 1
-                        print(i)
-                    idle_t.append(time.time()-t)
-                    
-                    scores = execution_engine(MAPO_feats_var, MAPO_programs_pred)
+                MAPO_feats_var = torch.zeros(args.batch_size, 1024, 14, 14).cuda() #Todo Automate 1024x14x14
+                MAPO_programs_pred = torch.zeros(args.batch_size, args.length_output).long().cuda()
+                MAPO_ans = torch.zeros(args.batch_size).long().cuda()
+                MAPO_q = torch.zeros(args.batch_size, 46).long().cuda() #Automate q length
+                hr_I = torch.zeros(args.batch_size).long().cuda()
+
+                t = time.time()
+                while i < args.batch_size:
+                    q_tmp, feat_tmp, program_tmp, ans_tmp, hr_path = que.get()
+                    MAPO_feats_var[i,:], MAPO_programs_pred[i,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
+                    MAPO_q[i,:], MAPO_ans[i] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
+                    hr_I[i] = hr_path.cuda().clone()
+                    del feat_tmp, program_tmp, q_tmp, ans_tmp, hr_path
+                    #We need to release this memory back to the MAPO workers
+                    i += 1
+                idle_t.append(time.time()-t)
     
-                    _, preds = scores.data.cpu().max(1)
-                    I = (preds == MAPO_ans)
-                    raw_reward = I.float()
-                    reward_moving_avg *= args.reward_decay
-                    reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
-                    centered_reward = raw_reward - reward_moving_avg
-                    
-                    _loss.append(loss_fn(scores, MAPO_ans).item())
-                    loss = loss_fn(scores[I,:], MAPO_ans[I])
-                                        
-                    if args.train_ee:
-                        ee_optimizer.zero_grad()
-                        loss.backwards()
-                        ee_optimizer.step()
-                    pg_optimizer.zero_grad()
-                    program_generator.reinforce_backward_MAPO(MAPO_m_out, MAPO_m_probs, MAPO_m_m, centered_reward)
-                    pg_optimizer.step()
-                
-                if args.MAPO_split is not None:
-                    batch = loader_que.get()
-                    questions, _, feats, answers, programs, _ = batch
-                    questions_var = Variable(questions.cuda())
-                    feats_var = Variable(feats.cuda())
-                    answers_var = Variable(answers.cuda())
-                    programs_pred = program_generator.reinforce_sample(questions_var)
-                    scores = execution_engine(feats_var, programs_pred)
-                    loss = loss_fn(scores, answers_var)
-                    ee_optimizer.zero_grad()  
+                m_out, m_probs, m_m = program_generator.program_to_probs(MAPO_q[hr_I==1], 
+                                                                         MAPO_programs_pred[hr_I==1],
+                                                                         args.temperature)
+                scores = execution_engine(MAPO_feats_var, MAPO_programs_pred)
+                _, preds = scores.data.cpu().max(1)
+                I = (preds == MAPO_ans.cpu()).long()
+                I_ = I[hr_I==1]
+                raw_reward = I_.float()
+                reward_moving_avg *= args.reward_decay
+                reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
+                centered_reward = raw_reward - reward_moving_avg
+                _loss.append(loss_fn(scores, MAPO_ans).item())
+                I = I.cuda()
+                loss = loss_fn(scores[(I+~hr_I),:], MAPO_ans[(I+~hr_I)])
+                if args.train_ee:
+                    ee_optimizer.zero_grad()
                     loss.backward()
                     ee_optimizer.step()
-                 
+                pg_optimizer.zero_grad()
+                program_generator.reinforce_backward_MAPO(m_out, m_probs, m_m, centered_reward.cuda())
+                pg_optimizer.step()                
+                
                 _loss.append(loss.item())
                 
                 if t % args.record_loss_every == 0:
@@ -497,6 +468,7 @@ if __name__ == '__main__':
                     if t == args.num_iterations and args.epochs == 0:
                         break 
     
+    #TODO: Remove this?
     print('Model %s is done, performing last accuracy check and saving model' % model_name)
     print('Model %s trained for %d epochs' % (model_name, epoch))
     if args.info:
