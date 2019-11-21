@@ -64,6 +64,7 @@ if __name__ == '__main__':
     
     #MAPO
     parser.add_argument('--MAPO_use_GPU', default=0, type=int) 
+    parser.add_argument('--MAPO_max_cpus', default=20, type=int)
     parser.add_argument('--MAPO_qsize', default=320, type=int)
     parser.add_argument('--MAPO_sample_argmax', default=True)
     parser.add_argument('--MAPO_check_bf', default=0.01, type=float)
@@ -171,14 +172,12 @@ if __name__ == '__main__':
     
     _loss = []
     break_counter = 0
-    func.set_mode('train', [program_generator, execution_engine])
-    program_generator.cuda()
-    execution_engine.cuda()
     
     #%% Non MAPO    
     if not args.mapo:
         cont = True
         train_loader = ClevrDataLoader(**train_loader_kwargs)    
+        func.set_mode('train', [program_generator, execution_engine])
         while cont:
             epoch += 1
             if args.info:
@@ -255,129 +254,133 @@ if __name__ == '__main__':
                                                                     ee_kwargs, vocab)
                         break
     
-        #%%MAPO
-        else:                         
-            if args.MAPO_use_GPU == 0:
-                cpu_count = mp.cpu_count()
-                if args.info:
-                    print('MAPO will use %d CPUs' % cpu_count-2)
-                func.set_mode('eval', [program_generator, execution_engine])
-                execution_engine.share_memory()
-                program_generator.share_memory()
-                processes = []
-                pg_que = mp.Queue()
-                loader_que = mp.Queue()
-                ee_que = mp.Queue()
-                skip_que = mp.Queue()
-                for cpu in range(cpu_count-1):
-                    p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
-                                                      execution_engine.cpu(), 
-                                                      loader_que, vocab, pg_que,
-                                                      skip_que, cpu))
-             
-                    p.start() 
-                    processes.append(p)
-                    if args.info:
-                        print('MAPO worker %s spawned' % str(cpu))
-                    
-                p = mp.Process(target=func.MAPO_loader, args=(train_loader_kwargs, 
-                                                              loader_que, ee_que, 
-                                                              skip_que, args.MAPO_qsize))
-                p.start()
+    #%%MAPO
+    else:                         
+        if args.MAPO_use_GPU == 0:
+            cpu_count = mp.cpu_count()
+            if args.MAPO_max_cpus is not None:
+                cpu_count = min(cpu_count, args.MAPO_max_cpus)
+            if args.info:
+                print('MAPO will use %d CPUs' % cpu_count-2)
+            func.set_mode('eval', [program_generator, execution_engine])
+            execution_engine.share_memory()
+            program_generator.share_memory()
+            processes = []
+            pg_que = mp.Queue()
+            loader_que = mp.Queue()
+            ee_que = mp.Queue()
+            skip_que = mp.Queue()
+            for cpu in range(cpu_count-1):
+                p = mp.Process(target=MAPO, args=(args, program_generator.cpu(),
+                                                  execution_engine.cpu(), 
+                                                  loader_que, vocab, pg_que,
+                                                  skip_que, cpu))
+         
+                p.start() 
                 processes.append(p)
                 if args.info:
-                    print('Clevr dataloader spawned')
-                                    
-            else:
-                raise KeyError('MAPO does not support actors on GPUs')
+                    print('MAPO worker %s spawned' % str(cpu))
                 
-                
-            idle_t = []
-            cont = True
-            while cont:
-                t += 1
-                for _ in range(args.MAPO_rate):
-                    i = 0
-                    j = 0
-                    feats_var = torch.zeros(args.batch_size, 1024, 14, 14).cuda() #TODO: Automate 1024x14x14
-                    programs_pred = torch.zeros(args.batch_size, args.length_output).long().cuda()
-                    ans = torch.zeros(args.batch_size).long().cuda()
-                    q = torch.zeros(args.batch_size, 46).long().cuda() #TODO: Automate q length
-                    t = time.time()
-                    while i < args.batch_size:
-                        q_tmp, feat_tmp, program_tmp, ans_tmp = pg_que.get()
-                        feats_var[i,:], programs_pred[i,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
-                        q[i,:], ans[i] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
-                        del feat_tmp, program_tmp, q_tmp, ans_tmp, hr_path
-                        #We need to release this memory back to the MAPO workers
-                        i += 1
-                    idle_t.append(time.time()-t)        
-                    m_out, m_probs, m_m = program_generator.program_to_probs(q, programs_pred,
-                                                                             args.temperature)
-                    scores = execution_engine(feats_var, programs_pred)
-                    _, preds = scores.data.cpu().max(1)
-                    I = (preds == ans.cpu()).long()
-                    raw_reward = I.float()
-                    reward_moving_avg *= args.reward_decay
-                    reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
-                    centered_reward = raw_reward - reward_moving_avg
-                    _loss.append(loss_fn(scores, ans).item())
-                    I = I.cuda()
-                    loss = loss_fn(scores[I,:], ans[I])
-                    if args.train_ee:
-                        ee_optimizer.zero_grad()
-                        loss.backward()
-                        ee_optimizer.step()
-                    pg_optimizer.zero_grad()
-                    program_generator.reinforce_backward_MAPO(m_out, m_probs, m_m, centered_reward.cuda())
-                    pg_optimizer.step()                
-                
-                while j < args.batch_size:
-                    q_tmp, feat_tmp, program_tmp, ans_tmp = ee_que.get()
-                    feats_var[j,:], programs_pred[j,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
-                    q[j,:], ans[j] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
-                    del feat_tmp, program_tmp, q_tmp, ans_tmp, hr_path
+            p = mp.Process(target=func.MAPO_loader, args=(train_loader_kwargs, 
+                                                          loader_que, ee_que, 
+                                                          skip_que, args.MAPO_qsize))
+            p.start()
+            processes.append(p)
+            if args.info:
+                print('Clevr dataloader spawned')
+                                
+        else:
+            raise KeyError('MAPO does not support actors on GPUs')
+        
+        func.set_mode('train', [program_generator, execution_engine])
+        program_generator.cuda()
+        execution_engine.cuda()
+        idle_t = []
+        cont = True
+        while cont:
+            t += 1
+            for _ in range(args.MAPO_rate):
+                i = 0
+                j = 0
+                feats_var = torch.zeros(args.batch_size, 1024, 14, 14).cuda() #TODO: Automate 1024x14x14
+                programs_pred = torch.zeros(args.batch_size, args.length_output).long().cuda()
+                ans = torch.zeros(args.batch_size).long().cuda()
+                q = torch.zeros(args.batch_size, 46).long().cuda() #TODO: Automate q length
+                t = time.time()
+                while i < args.batch_size:
+                    q_tmp, feat_tmp, program_tmp, ans_tmp = pg_que.get()
+                    feats_var[i,:], programs_pred[i,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
+                    q[i,:], ans[i] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
+                    del feat_tmp, program_tmp, q_tmp, ans_tmp
                     #We need to release this memory back to the MAPO workers
-                    j += 1
-                    
+                    i += 1
+                idle_t.append(time.time()-t)        
+                m_out, m_probs, m_m = program_generator.program_to_probs(q, programs_pred,
+                                                                         args.temperature)
+                scores = execution_engine(feats_var, programs_pred)
+                _, preds = scores.data.cpu().max(1)
+                I = (preds == ans.cpu()).long()
+                raw_reward = I.float()
+                reward_moving_avg *= args.reward_decay
+                reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
+                centered_reward = raw_reward - reward_moving_avg
+                _loss.append(loss_fn(scores, ans).item())
+                I = I.cuda()
+                loss = loss_fn(scores[I,:], ans[I])
+                if args.train_ee:
+                    ee_optimizer.zero_grad()
+                    loss.backward()
+                    ee_optimizer.step()
+                pg_optimizer.zero_grad()
+                program_generator.reinforce_backward_MAPO(m_out, m_probs, m_m, centered_reward.cuda())
+                pg_optimizer.step()                
+            
+            while j < args.batch_size:
+                q_tmp, feat_tmp, ans_tmp = ee_que.get()
+                feats_var[j,:] = feat_tmp.cuda().clone()
+                q[j,:], ans[j] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
+                del feat_tmp, q_tmp, ans_tmp
+                #We need to release this memory back to the MAPO workers
+                j += 1
+                
 #                questions, _, feats, answer, _, _ = batch
 #                questions_var = Variable(questions.cuda())
 #                feats_var = Variable(feats.cuda())
 #                answers_var = Variable(answers.cuda())
-                ee_optimizer.zero_grad()  
-                programs_pred = program_generator.reinforce_sample(questions_var)
-                scores = execution_engine(feats_var, programs_pred)
-                loss = loss_fn(scores, answers_var)
-                loss.backward()
-                ee_optimizer.step()
-                _loss.append(loss.item())
-                
-                
-                stats['train_losses'].append(sum(_loss)/len(_loss))
-                stats['train_losses_ts'].append(t)
-                stats['train_rewards'].append(reward)
-                
-                if t % args.checkpoint_every == 0:
+            ee_optimizer.zero_grad()  
+            programs_pred = program_generator.reinforce_sample(questions_var)
+            scores = execution_engine(feats_var, programs_pred)
+            loss = loss_fn(scores, answers_var)
+            loss.backward()
+            ee_optimizer.step()
+            _loss.append(loss.item())
+            
+            
+            stats['train_losses'].append(sum(_loss)/len(_loss))
+            stats['train_losses_ts'].append(t)
+            stats['train_rewards'].append(reward)
+            
+            if t % args.checkpoint_every == 0:
+                stats, break_counter = func.checkpoint_func(args, program_generator,
+                                                     execution_engine, train_loader, 
+                                                     val_loader, t, epoch, stats,
+                                                     model_name, _loss, pg_kwargs, 
+                                                     ee_kwargs, vocab)
+            if args.break_after is not None:
+                if break_counter >= args.break_after:
+                    print('Model %s is done training' % model_name)
+                    cont = False
+                    break
+            if args.num_iterations is not None:    
+                if t == args.num_iterations:
+                    cont = False
+                    print('Model %s is done training - performing last accuracy check' % model_name)
                     stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                         execution_engine, train_loader, 
-                                                         val_loader, t, epoch, stats,
-                                                         model_name, _loss, pg_kwargs, 
-                                                         ee_kwargs, vocab)
-                if args.break_after is not None:
-                    if break_counter >= args.break_after:
-                        print('Model %s is done training' % model_name)
-                        cont = False
-                        break
-                if args.num_iterations is not None:    
-                    if t == args.num_iterations:
-                        cont = False
-                        print('Model %s is done training - performing last accuracy check' % model_name)
-                        stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                                    execution_engine, train_loader, 
-                                                                    val_loader, t, epoch, stats,
-                                                                    model_name, _loss, pg_kwargs, 
-                                                                    ee_kwargs, vocab)
-                        break            
-            
-            
-            
+                                                                execution_engine, train_loader, 
+                                                                val_loader, t, epoch, stats,
+                                                                model_name, _loss, pg_kwargs, 
+                                                                ee_kwargs, vocab)
+                    break            
+        
+        
+        

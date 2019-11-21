@@ -26,8 +26,8 @@ def MAPO(args, pg, ee, loader_que, vocab, que, skip_que, number):
     pg.type(dtype)
     ee.type(dtype)
     while True:
-        sample, i = loader_que.get()
-        question, _, feats, answer, _, _ = sample
+        sample = loader_que.get()
+        question, _, feats, answer, _, _, i = sample
         q_name = '-'.join(str(e) for e in question.numpy() if e != 0)
         question = question.unsqueeze(0)
         bf_path = args.bf_load_path + '/' + q_name
@@ -82,13 +82,13 @@ def MAPO(args, pg, ee, loader_que, vocab, que, skip_que, number):
                 skip_que.put(i)           
             torch.save(program_pred, directory + program_name+'.pt')
             #Current prediction is high reward path
-            put(question_var, feats_var, program_pred, answer)
+            put(args, que, question_var, feats_var, program_pred, answer)
             #Sample unseen (most likely non reward) path
             bf = CBF(filepath=bf_path)
             program_pred = pg.sample_non_high_reward(question_var, 
                                                      temperature=args.temperature, 
                                                      argmax=args.MAPO_sample_argmax)
-            put(question_var, feats_var, program_pred, answer)
+            put(args, que, question_var, feats_var, program_pred, answer)
 
         else:
             if not os.path.exists(directory):
@@ -96,11 +96,11 @@ def MAPO(args, pg, ee, loader_que, vocab, que, skip_que, number):
                 continue
             else:
                 #Our current predictions is non reward path
-                put((question_var, feats_var, program_pred, answer))
+                put(args, que, question_var, feats_var, program_pred, answer)
                 #Sample high reward path
                 q = random.choice(os.listdir(directory))
                 program_pred = torch.load(directory + q)
-                put((question_var, feats_var, program_pred, answer))
+                put(args, que, question_var, feats_var, program_pred, answer)
 
 def put(args, que, question, feats, program_pred, ans):
     if que.qsize() >= args.MAPO_qsize:

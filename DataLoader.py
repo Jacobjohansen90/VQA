@@ -74,7 +74,7 @@ class ClevrDataset(Dataset):
                 program_json = P.prefix_to_list(program_json_seq)
             elif self.mode == 'postfix':
                 program_json = P.postfix_to_list(program_json_seq)
-        return (question, image, feats, answer, program_seq, program_json)
+        return (question, image, feats, answer, program_seq, program_json, index)
     
     def __len__(self):
         if self.max_samples is None:

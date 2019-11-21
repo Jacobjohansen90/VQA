@@ -270,7 +270,7 @@ def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
         j = 0
         while True:
             if loader_que.qsize() < max_size:
-                loader_que.put(dataset[i], i)
+                loader_que.put(dataset[i])
                 i += 1
                 if i % max_iterator == 0:
                     i = 0
@@ -280,7 +280,9 @@ def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
                     if j % max_iterator == 0:
                         j = 0
                 else:
-                    ee_que.put(dataset[j])
+                    sample = dataset[j]
+                    q, _, feat, ans, _, _, _ = sample
+                    ee_que.put((q, feat, ans))
             for _ in range(skip_que.qsize()):
                 index = skip_que.get()
                 if index < 0:
