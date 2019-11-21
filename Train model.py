@@ -214,6 +214,7 @@ if __name__ == '__main__':
                     reward_moving_avg *= args.reward_decay
                     reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
                     centered_reward = raw_reward - reward_moving_avg
+                    reward = centered_reward.mean().item()
                     
                     if args.train_ee == 1:
                         ee_optimizer.zero_grad()
@@ -324,6 +325,7 @@ if __name__ == '__main__':
                 reward_moving_avg *= args.reward_decay
                 reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
                 centered_reward = raw_reward - reward_moving_avg
+                reward = centered_reward.mean().item()
                 _loss.append(loss_fn(scores, ans).item())
                 I = I.cuda()
                 loss = loss_fn(scores[I,:], ans[I])
@@ -343,10 +345,6 @@ if __name__ == '__main__':
                 #We need to release this memory back to the MAPO workers
                 j += 1
                 
-#                questions, _, feats, answer, _, _ = batch
-#                questions_var = Variable(questions.cuda())
-#                feats_var = Variable(feats.cuda())
-#                answers_var = Variable(answers.cuda())
             ee_optimizer.zero_grad()  
             programs_pred = program_generator.reinforce_sample(q)
             scores = execution_engine(feats_var, programs_pred)
