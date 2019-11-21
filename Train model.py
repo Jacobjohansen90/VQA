@@ -21,7 +21,7 @@ import time
 #                              7797,31477,31587,21087,7974,139121])
 
 
-#TODO: Make dynamic loader for EE, loading only q's with no high reward paths
+#TODO: program_generator.sample_non_high_reward samples random sample instead of non reward one
 
 #%% Setup Params
 if __name__ == '__main__':
@@ -298,35 +298,32 @@ if __name__ == '__main__':
                 t += 1
                 for _ in range(args.MAPO_rate):
                     i = 0
-                    MAPO_feats_var = torch.zeros(args.batch_size, 1024, 14, 14).cuda() #TODO: Automate 1024x14x14
-                    MAPO_programs_pred = torch.zeros(args.batch_size, args.length_output).long().cuda()
-                    MAPO_ans = torch.zeros(args.batch_size).long().cuda()
-                    MAPO_q = torch.zeros(args.batch_size, 46).long().cuda() #TODO: Automate q length
-                    hr_I = torch.zeros(args.batch_size).long().cuda()
+                    j = 0
+                    feats_var = torch.zeros(args.batch_size, 1024, 14, 14).cuda() #TODO: Automate 1024x14x14
+                    programs_pred = torch.zeros(args.batch_size, args.length_output).long().cuda()
+                    ans = torch.zeros(args.batch_size).long().cuda()
+                    q = torch.zeros(args.batch_size, 46).long().cuda() #TODO: Automate q length
                     t = time.time()
                     while i < args.batch_size:
-                        q_tmp, feat_tmp, program_tmp, ans_tmp, hr_path = pg_que.get()
-                        MAPO_feats_var[i,:], MAPO_programs_pred[i,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
-                        MAPO_q[i,:], MAPO_ans[i] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
-                        hr_I[i] = hr_path.cuda().clone()
+                        q_tmp, feat_tmp, program_tmp, ans_tmp = pg_que.get()
+                        feats_var[i,:], programs_pred[i,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
+                        q[i,:], ans[i] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
                         del feat_tmp, program_tmp, q_tmp, ans_tmp, hr_path
                         #We need to release this memory back to the MAPO workers
                         i += 1
                     idle_t.append(time.time()-t)        
-                    m_out, m_probs, m_m = program_generator.program_to_probs(MAPO_q[hr_I==1], 
-                                                                             MAPO_programs_pred[hr_I==1],
+                    m_out, m_probs, m_m = program_generator.program_to_probs(q, programs_pred,
                                                                              args.temperature)
-                    scores = execution_engine(MAPO_feats_var, MAPO_programs_pred)
+                    scores = execution_engine(feats_var, programs_pred)
                     _, preds = scores.data.cpu().max(1)
-                    I = (preds == MAPO_ans.cpu()).long()
-                    I_ = I[hr_I==1]
-                    raw_reward = I_.float()
+                    I = (preds == ans.cpu()).long()
+                    raw_reward = I.float()
                     reward_moving_avg *= args.reward_decay
                     reward_moving_avg+= (1.0 - args.reward_decay) * raw_reward.mean()
                     centered_reward = raw_reward - reward_moving_avg
-                    _loss.append(loss_fn(scores, MAPO_ans).item())
+                    _loss.append(loss_fn(scores, ans).item())
                     I = I.cuda()
-                    loss = loss_fn(scores[(I+~hr_I),:], MAPO_ans[(I+~hr_I)])
+                    loss = loss_fn(scores[I,:], ans[I])
                     if args.train_ee:
                         ee_optimizer.zero_grad()
                         loss.backward()
@@ -335,11 +332,18 @@ if __name__ == '__main__':
                     program_generator.reinforce_backward_MAPO(m_out, m_probs, m_m, centered_reward.cuda())
                     pg_optimizer.step()                
                 
-                batch = ee_que.get()
-                questions, _, feats, answer, _, _ = batch
-                questions_var = Variable(questions.cuda())
-                feats_var = Variable(feats.cuda())
-                answers_var = Variable(answers.cuda())
+                while j < args.batch_size:
+                    q_tmp, feat_tmp, program_tmp, ans_tmp = ee_que.get()
+                    feats_var[j,:], programs_pred[j,:] = feat_tmp.cuda().clone(), program_tmp.cuda().clone()
+                    q[j,:], ans[j] = q_tmp.cuda().clone(), ans_tmp.cuda().clone()
+                    del feat_tmp, program_tmp, q_tmp, ans_tmp, hr_path
+                    #We need to release this memory back to the MAPO workers
+                    j += 1
+                    
+#                questions, _, feats, answer, _, _ = batch
+#                questions_var = Variable(questions.cuda())
+#                feats_var = Variable(feats.cuda())
+#                answers_var = Variable(answers.cuda())
                 ee_optimizer.zero_grad()  
                 programs_pred = program_generator.reinforce_sample(questions_var)
                 scores = execution_engine(feats_var, programs_pred)

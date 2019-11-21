@@ -82,14 +82,13 @@ def MAPO(args, pg, ee, loader_que, vocab, que, skip_que, number):
                 skip_que.put(i)           
             torch.save(program_pred, directory + program_name+'.pt')
             #Current prediction is high reward path
-            put((question_var, feats_var, program_pred, answer))
+            put(question_var, feats_var, program_pred, answer)
             #Sample unseen (most likely non reward) path
             bf = CBF(filepath=bf_path)
-            #This is not what we want, we wanna sample most prob non high reward path
             program_pred = pg.sample_non_high_reward(question_var, 
                                                      temperature=args.temperature, 
                                                      argmax=args.MAPO_sample_argmax)
-            put((question_var, feats_var, program_pred, answer, torch.tensor([1])))
+            put(question_var, feats_var, program_pred, answer)
 
         else:
             if not os.path.exists(directory):
