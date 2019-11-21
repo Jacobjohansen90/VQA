@@ -37,8 +37,7 @@ class ClevrDataset(Dataset):
             all_image_idxs = np.asarray(question_h5['image_idxs'])
             mask = all_image_idxs >= image_idx_start_from
             
-        #We read all data into memory, change this if Q file becomes too large
-        #print('Reading data into memory')
+
         self.all_questions = dataset_to_tensor(question_h5['questions'], mask)
         self.all_image_idxs = dataset_to_tensor(question_h5['image_idxs'], mask)
         self.all_programs = None
@@ -93,13 +92,11 @@ class ClevrDataLoader(DataLoader):
             raise ValueError('Must give vocab')
             
         feature_h5_path = kwargs.pop('feature_h5')
-        #print('Reading features from ', feature_h5_path)
         self.feature_h5 = h5py.File(feature_h5_path, 'r')
         
         self.image_h5 = None
         if 'image_h5' in kwargs:
             image_h5_path = kwargs.pop('image_h5')
-            #print('Reading images from ', image_h5_path)
             self.image_h5 = h5py.File(image_h5_path, 'r')
         
         vocab = kwargs.pop('vocab')
@@ -108,7 +105,6 @@ class ClevrDataLoader(DataLoader):
         max_samples = kwargs.pop('max_samples', None)
         question_h5_path = kwargs.pop('question_h5')
         image_idx_start_from = kwargs.pop('image_idx_start_from', None)
-        #print('Reading questions from ', question_h5_path)
         with h5py.File(question_h5_path, 'r') as question_h5:
             self.dataset = ClevrDataset(question_h5, self.feature_h5, vocab, mode,
                                         image_h5=self.image_h5,

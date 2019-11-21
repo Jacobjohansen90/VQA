@@ -12,8 +12,24 @@ from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
 from torch.autograd import Variable
 from Preprocess_funcs import decode
-from DataLoader import ClevrDataLoader
-import copy
+from DataLoader import ClevrDataset
+import re
+import h5py
+
+#Auto model anmer
+def auto_namer(args):
+    if args.model_type == "PG":
+        if args.num_train_samples is not None:
+            model_name = args.model_type+'_'+str(int(args.num_train_samples)//1000)+'k'
+        else:
+            model_name = args.model_type+'_'+'700k'
+    elif args.mapo == True:
+        model_name = 'MAPO'+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
+    else:
+        model_name = args.model_type+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
+    return model_name
+
+
 #Vocab funcs
 def invert_dict(d):
     return {v: k for k, v in d.items()}
@@ -66,6 +82,9 @@ def get_program_generator(vocab, args):
         pg = Seq2Seq(**kwargs)
     pg.cuda()
     pg.train()
+    if args.info:
+        print('Here is the program generator:')
+        print(pg)
     return pg, kwargs
 
 #Execution Engine
@@ -96,6 +115,9 @@ def get_execution_engine(vocab, args):
         ee = ModuleNet(args.info, **kwargs)
     ee.cuda()
     ee.train()
+    if args.info:
+        print('Here is the execution engine:')
+        print(ee)
     return ee, kwargs
 
 #Model funcs
@@ -163,25 +185,110 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     acc = round(acc, 4)
     return acc
     
-#MAPO Functions  
-def load_vocab_MAPO(args):
-    path = args.execution_engine
-    return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
+def checkpoint_function(args, program_generator, execution_engine,
+                        train_loader, val_loader, t, epoch, stats,
+                        model_name, _loss, pg_kwargs, ee_kwargs, vocab):
+    if args.info:
+        print('Calculating accuracy')
+    train_acc = check_accuracy(args, program_generator,
+                                execution_engine, train_loader)
+    val_acc = check_accuracy(args, program_generator,
+                              execution_engine, val_loader)
+    stats['train_accs'].append(train_acc)
+    stats['val_accs'].append(val_acc)
+    stats['val_accs_ts'].append(t)
+    stats['epoch'].append(epoch)
+    if val_acc > stats['best_val_acc']:
+        stats['best_val_acc'] = val_acc
+        stats['best_model_t'] = t
+        best_pg_state = get_state(program_generator)
+        best_ee_state = get_state(execution_engine)
+        break_counter = 0
+        improved_val = "+"
+    else: 
+        break_counter += 1
+        improved_val = "-"
+    print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f (%s)'  \
+          % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc, improved_val))
+    _loss = []
+        
+    checkpoint = {'args': args.__dict__,
+                  'program_generator_kwargs': pg_kwargs,
+                  'program_generator_state': best_pg_state,
+                  'execution_engine_kwargs': ee_kwargs,
+                  'execution_engine_state': best_ee_state,
+                  'vocab': vocab}
+    for k, v in stats.items():
+        checkpoint[k] = v
+    if args.info:
+        print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
+    torch.save(checkpoint, args.checkpoint_path+'.pt')
+    del checkpoint['program_generator_state']
+    del checkpoint['execution_engine_state']
+    with open(args.checkpoint_path + '.json', 'w') as f:
+        json.dump(checkpoint, f)
+    return stats, break_counter
 
-def h5py_loader(loader_kwargs, loader_que, max_size=50):
-    loader = ClevrDataLoader(**loader_kwargs)
-    wait = True
-    while True:
-        t = 0        
-        for batch_ in loader:
-            batch = copy.deepcopy(batch_)
-            t += 1
-            while wait:
-                if loader_que.qsize() < max_size:
-                    wait = False
-            loader_que.put(batch)
-            wait = True
+#MAPO Functions  
+#def load_vocab_MAPO(args):
+#    path = args.execution_engine
+#    return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
+
+def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
+    if 'question_h5' not in loader_kwargs:
+            raise ValueError('Must give question_q5')
+    if 'feature_h5'  not in loader_kwargs:
+        raise ValueError('Must give feature_h5')
+    if 'vocab' not in loader_kwargs:
+        raise ValueError('Must give vocab')
+        
+    feature_h5_path = loader_kwargs.pop('feature_h5')
+    feature_h5 = h5py.File(feature_h5_path, 'r')
     
+    image_h5 = None
+    if 'image_h5' in loader_kwargs:
+        image_h5_path = loader_kwargs.pop('image_h5')
+        image_h5 = h5py.File(image_h5_path, 'r')
+    
+    vocab = loader_kwargs.pop('vocab')
+    mode = loader_kwargs.pop('mode', 'prefix')
+    
+    max_samples = loader_kwargs.pop('max_samples', None)
+    question_h5_path = loader_kwargs.pop('question_h5')
+    image_idx_start_from = loader_kwargs.pop('image_idx_start_from', None)
+    
+    
+    with h5py.File(question_h5_path, 'r') as question_h5:
+        dataset = ClevrDataset(question_h5, feature_h5, vocab, mode,
+                                        image_h5=image_h5,
+                                        max_samples=max_samples,
+                                        image_idx_start_from=image_idx_start_from)
+
+        skip_list = []
+        max_iterator = len(dataset.all_answers)
+        i = 0
+        j = 0
+        while True:
+            if loader_que.qsize() < max_size:
+                loader_que.put(dataset[i], i)
+                i += 1
+                if i % max_iterator == 0:
+                    i = 0
+            if ee_que.qsize() < max_size:
+                if j in skip_list:
+                    j += 1
+                    if j % max_iterator == 0:
+                        j = 0
+                else:
+                    ee_que.put(dataset[j])
+            for _ in range(skip_que.qsize()):
+                index = skip_que.get()
+                if index < 0:
+                    skip_list.remove(abs(index))
+                else:
+                    skip_list.append(index)
+            
+                    
     
 
             
