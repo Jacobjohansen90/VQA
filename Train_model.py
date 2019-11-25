@@ -24,9 +24,10 @@ import time
 #TODO: program_generator.sample_non_high_reward samples random sample instead of non reward one
 #TODO: Add oversampling
 #TODO: Add random load order in batch loader
-#TODO: Add automatic cleanup of high reward paths and bloom filters
 #TODO: Add MAPO GPU EE
 #TODO: Add trainloader capability for check_func
+#TODO: Add smarter novel path method since program is predicted in reverse
+#TODO: Sample initial strongly labelled dataset 'smarter'
 train_loader = 1 
 #%% Setup Params
 if __name__ == '__main__':
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--bf_load_path', default='../Data/bloom_filters')
     
     #MAPO
-    parser.add_argument('--MAPO_auto_cleanup', default=0, type=int)
+    parser.add_argument('--MAPO_auto_cleanup', default=1, type=int)
     parser.add_argument('--MAPO_use_GPU', default=0, type=int) 
     parser.add_argument('--MAPO_max_cpus', default=20, type=int)
     parser.add_argument('--MAPO_qsize', default=320, type=int)
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     program_generator, pg_kwargs, pg_optimizer = None, None, None
     execution_engine, ee_kwargs, ee_optimizer = None, None, None
     
-    pg_best_state, ee_best_state = None, None
+    best_pg_state, best_ee_state = None, None
     
     #Set up model
     if args.MAPO_use_GPU:
@@ -243,11 +244,11 @@ if __name__ == '__main__':
                     stats['train_rewards'].append(reward)
             
                 if t % args.checkpoint_every == 0:
-                    stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                         execution_engine, train_loader, 
-                                                         val_loader, t, epoch, stats,
-                                                         model_name, _loss, pg_kwargs, 
-                                                         ee_kwargs, vocab, break_counter)
+                    stats, break_counter, best_pg_state, best_ee_state =\
+                    func.checkpoint_func(args, program_generator, execution_engine, 
+                                         train_loader, val_loader, t, epoch, stats,
+                                         model_name, _loss, pg_kwargs, ee_kwargs, 
+                                         vocab, break_counter, best_pg_state, best_ee_state)
                 if args.break_after is not None:
                     if break_counter >= args.break_after:
                         print('Model %s is done training' % model_name)
@@ -257,11 +258,11 @@ if __name__ == '__main__':
                     if t == args.num_iterations:
                         cont = False
                         print('Model %s is done training - performing last accuracy check' % model_name)
-                        stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                                    execution_engine, train_loader, 
-                                                                    val_loader, t, epoch, stats,
-                                                                    model_name, _loss, pg_kwargs, 
-                                                                    ee_kwargs, vocab, break_counter)
+                        stats, break_counter, best_pg_state, best_ee_state =\
+                        func.checkpoint_func(args, program_generator, execution_engine, 
+                                             train_loader, val_loader, t, epoch, stats,
+                                             model_name, _loss, pg_kwargs, ee_kwargs, 
+                                             vocab, break_counter, best_pg_state, best_ee_state)
                         break
     
     #%%MAPO
@@ -312,8 +313,8 @@ if __name__ == '__main__':
                 processes.append(p)
                 if args.info:
                     print('MAPO worker %s spawned' % str(cpu))
-            p = mp.Process(target=MAPO_GPU_EE, args=(args, program_generator.cuda(),
-                                                     execution_engine.cuda(),
+            p = mp.Process(target=MAPO_GPU_EE, args=(args, program_generator.cuda(1),
+                                                     execution_engine.cuda(1),
                                                      MAPO_que, pg_que, ee_que,
                                                      skip_que))
             p.start()
@@ -386,11 +387,11 @@ if __name__ == '__main__':
             stats['train_rewards'].append(reward)
             
             if t % args.checkpoint_every == 0:
-                stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                     execution_engine, train_loader, 
-                                                     val_loader, t, epoch, stats,
-                                                     model_name, _loss, pg_kwargs, 
-                                                     ee_kwargs, vocab, break_counter)
+                stats, break_counter, best_pg_state, best_ee_state =\
+                func.checkpoint_func(args, program_generator, execution_engine, 
+                                     train_loader, val_loader, t, epoch, stats,
+                                     model_name, _loss, pg_kwargs, ee_kwargs, 
+                                     vocab, break_counter, best_pg_state, best_ee_state)
             if args.break_after is not None:
                 if break_counter >= args.break_after:
                     print('Model %s is done training' % model_name)
@@ -400,11 +401,11 @@ if __name__ == '__main__':
                 if t == args.num_iterations:
                     cont = False
                     print('Model %s is done training - performing last accuracy check' % model_name)
-                    stats, break_counter = func.checkpoint_func(args, program_generator,
-                                                                execution_engine, train_loader, 
-                                                                val_loader, t, epoch, stats,
-                                                                model_name, _loss, pg_kwargs, 
-                                                                ee_kwargs, vocab, break_counter)
+                    stats, break_counter, best_pg_state, best_ee_state =\
+                    func.checkpoint_func(args, program_generator, execution_engine, 
+                                         train_loader, val_loader, t, epoch, stats,
+                                         model_name, _loss, pg_kwargs, ee_kwargs, 
+                                         vocab, break_counter, best_pg_state, best_ee_state)
                     break            
                 
                 

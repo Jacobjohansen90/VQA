@@ -189,7 +189,7 @@ def check_accuracy(args, program_generator, execution_engine, loader):
 def checkpoint_func(args, program_generator, execution_engine,
                     train_loader, val_loader, t, epoch, stats,
                     model_name, _loss, pg_kwargs, ee_kwargs, 
-                    vocab, break_counter):
+                    vocab, break_counter, best_pg_state, best_ee_state):
     if args.info:
         print('Calculating accuracy')
     #train_acc = check_accuracy(args, program_generator,
@@ -230,7 +230,7 @@ def checkpoint_func(args, program_generator, execution_engine,
     del checkpoint['execution_engine_state']
     with open(args.checkpoint_path + '.json', 'w') as f:
         json.dump(checkpoint, f)
-    return stats, break_counter
+    return stats, break_counter, best_pg_state, best_ee_state
 
 #MAPO Functions  
 def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
@@ -291,8 +291,12 @@ def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
             
 
 def clean_up(args):
-    bf_path = args.bf_load_path
+    bf_path = args.bf_load_path + '/'
     hr_path = args.high_reward_path 
+    shutil.rmtree(bf_path)
+    shutil.rmtree(hr_path)
+    os.mkdir(hr_path)
+    os.mkdir(bf_path)
            
     
     
