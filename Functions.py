@@ -15,6 +15,8 @@ from Preprocess_funcs import decode
 from DataLoader import ClevrDataset
 import re
 import h5py
+import os
+import shutil
 
 #Auto model anmer
 def auto_namer(args):
@@ -147,7 +149,6 @@ def check_accuracy(args, program_generator, execution_engine, loader):
         with torch.no_grad():
             questions_var = Variable(questions.cuda())
             feats_var = Variable(feats.cuda())
-        #answers_var = Variable(answers.cuda(), volatile=True)
         if programs[0] is not None:
             with torch.no_grad():
                 programs_var = Variable(programs.cuda())
@@ -185,13 +186,15 @@ def check_accuracy(args, program_generator, execution_engine, loader):
     acc = round(acc, 4)
     return acc
     
-def checkpoint_function(args, program_generator, execution_engine,
-                        train_loader, val_loader, t, epoch, stats,
-                        model_name, _loss, pg_kwargs, ee_kwargs, vocab):
+def checkpoint_func(args, program_generator, execution_engine,
+                    train_loader, val_loader, t, epoch, stats,
+                    model_name, _loss, pg_kwargs, ee_kwargs, 
+                    vocab, break_counter):
     if args.info:
         print('Calculating accuracy')
-    train_acc = check_accuracy(args, program_generator,
-                                execution_engine, train_loader)
+    #train_acc = check_accuracy(args, program_generator,
+    #                            execution_engine, train_loader)
+    train_acc = 0.5
     val_acc = check_accuracy(args, program_generator,
                               execution_engine, val_loader)
     stats['train_accs'].append(train_acc)
@@ -230,10 +233,6 @@ def checkpoint_function(args, program_generator, execution_engine,
     return stats, break_counter
 
 #MAPO Functions  
-#def load_vocab_MAPO(args):
-#    path = args.execution_engine
-#    return torch.load(path, map_location=lambda storage, loc: storage)['vocab']
-
 def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
     if 'question_h5' not in loader_kwargs:
             raise ValueError('Must give question_q5')
@@ -290,7 +289,12 @@ def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
                 else:
                     skip_list.append(index)
             
-                    
+
+def clean_up(args):
+    bf_path = args.bf_load_path
+    hr_path = args.high_reward_path 
+           
+    
     
 
             

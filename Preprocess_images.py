@@ -17,11 +17,11 @@ from Preprocess_funcs import build_model, run_batch
 ##Args
 
 feature_model = 'resnet101'
-split = 'all'
+split = 'val'
 max_images = None
 model = 'resnet101'
 model_stage = 3
-batch_size = 64
+batch_size = 32
 img_h = img_w = 224
 
 ##Preprocessing
