@@ -139,5 +139,6 @@ class ClevrDataLoader(DataLoader):
         if transposed[4][0] is not None:
             program_seq_batch = default_collate(transposed[4])
         program_struct_batch = transposed[5]
-        return [question_batch, image_batch, feat_batch, answer_batch, program_seq_batch, program_struct_batch]
+        i = transposed[6]
+        return [question_batch, image_batch, feat_batch, answer_batch, program_seq_batch, program_struct_batch, i]
         

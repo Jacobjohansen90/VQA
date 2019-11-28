@@ -10,25 +10,19 @@ import json
 import torch
 from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
-from torch.autograd import Variable
-from Preprocess_funcs import decode
 from DataLoader import ClevrDataset
-import re
 import h5py
 import os
 import shutil
+import torch.multiprocessing as mp
+from MAPO_workers import MAPO_CPU
 
-#Auto model anmer
-def auto_namer(args):
-    if args.model_type == "PG":
-        if args.num_train_samples is not None:
-            model_name = args.model_type+'_'+str(int(args.num_train_samples)//1000)+'k'
-        else:
-            model_name = args.model_type+'_'+'700k'
-    elif args.mapo == True:
-        model_name = 'MAPO'+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
+#Auto model namer
+def auto_namer(model, args):
+    if args.num_train_samples is not None:
+        model_name = model+'_'+str(int(args.num_train_samples)//1000)+'k'
     else:
-        model_name = args.model_type+'_'+re.findall(r'[0-9]+',args.pg_start_from)[0]+'k'
+        model_name = model+'_'+'700k'
     return model_name
 
 
@@ -141,66 +135,46 @@ def get_state(m):
         state[k] = v.clone()
     return state
             
-def check_accuracy(args, program_generator, execution_engine, loader):
+def check_accuracy(args, model, program_generator, execution_engine, loader):
     set_mode('eval', [program_generator, execution_engine])
     num_correct, num_samples = 0,0
     for batch in loader:
-        questions, _, feats, answers, programs, _ = batch
-        with torch.no_grad():
-            questions_var = Variable(questions.cuda())
-            feats_var = Variable(feats.cuda())
-        if programs[0] is not None:
-            with torch.no_grad():
-                programs_var = Variable(programs.cuda())
-        
+        questions, _, feats, answers, programs, _, _ = batch
         scores = None
-        if args.model_type == 'PG':
-            vocab = load_vocab(args.vocab_json)
-            for i in range(questions.size(0)):
-                with torch.no_grad():
-                    program_pred = program_generator.sample(Variable(questions[i:i+1].cuda()))
-                program_pred_str = decode(program_pred, vocab['program_idx_to_token'])
-                program_str = decode(programs[i], vocab['program_idx_to_token'])
-                if program_pred_str == program_str:
-                    num_correct += 1
+        programs_pred = program_generator.reinforce_sample(questions.cuda())
+        if model == 'PG':
+            I1 = (programs_pred != 0)
+            I2 = (programs != 0)
+            for i in range(programs_pred.shape[0]):
                 num_samples += 1
+                if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
+                    if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
+                        num_correct += 1
 
-        elif args.model_type == 'EE':
-            scores = execution_engine(feats_var, programs_var)
-
-        elif args.model_type == 'PG+EE':
-            program_pred = program_generator.reinforce_sample(questions_var,
-                                                              argmax=True)
-            scores = execution_engine(feats_var, program_pred)
-        
-        if scores is not None:
+        else: 
+            scores = execution_engine(feats, programs_pred)
             _, preds = scores.data.cpu().max(1)
             num_correct += (preds == answers).sum()
             num_samples += preds.size(0)
-            
-        if num_samples >= args.num_val_samples:
-            break
         
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
     return acc
     
-def checkpoint_func(args, program_generator, execution_engine,
+def checkpoint_func(args, model, program_generator, execution_engine,
                     train_loader, val_loader, t, epoch, stats,
                     model_name, _loss, pg_kwargs, ee_kwargs, 
                     vocab, break_counter, best_pg_state, best_ee_state):
     if args.info:
         print('Calculating accuracy')
-    #train_acc = check_accuracy(args, program_generator,
-    #                            execution_engine, train_loader)
-    train_acc = 0.5
-    val_acc = check_accuracy(args, program_generator,
+    train_acc = check_accuracy(args, model, program_generator,
+                                execution_engine, train_loader)
+    val_acc = check_accuracy(args, model, program_generator,
                               execution_engine, val_loader)
     stats['train_accs'].append(train_acc)
     stats['val_accs'].append(val_acc)
     stats['val_accs_ts'].append(t)
-    stats['epoch'].append(epoch)
     if val_acc > stats['best_val_acc']:
         stats['best_val_acc'] = val_acc
         stats['best_model_t'] = t
@@ -213,7 +187,6 @@ def checkpoint_func(args, program_generator, execution_engine,
         improved_val = "-"
     print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f (%s)'  \
           % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc, improved_val))
-    _loss = []
         
     checkpoint = {'args': args.__dict__,
                   'program_generator_kwargs': pg_kwargs,
@@ -233,7 +206,7 @@ def checkpoint_func(args, program_generator, execution_engine,
     return stats, break_counter, best_pg_state, best_ee_state
 
 #MAPO Functions  
-def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
+def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait_que, max_size):
     if 'question_h5' not in loader_kwargs:
             raise ValueError('Must give question_q5')
     if 'feature_h5'  not in loader_kwargs:
@@ -263,32 +236,91 @@ def MAPO_loader(loader_kwargs, loader_que, ee_que, skip_que, max_size):
                                         max_samples=max_samples,
                                         image_idx_start_from=image_idx_start_from)
 
-        skip_list = []
         max_iterator = len(dataset.all_answers)
-        i = 0
-        j = 0
+        i = 0; j = 0; k = 0
         while True:
-            if loader_que.qsize() < max_size:
-                loader_que.put(dataset[i])
-                i += 1
+            if wait_que.qsize() > 0:
+                wait_que.put(1)
+                while wait_que.qsize == 2:
+                    continue
+                wait_que.get()
+                while wait_que.qsize == 0:
+                    continue
+                wait_que.get()
+            
+            if MAPO_que.qsize() < max_size:
+                if i in hr_list:
+                    i += 1
+                else:
+                    MAPO_que.put(dataset[i])
+                    i += 1
                 if i % max_iterator == 0:
                     i = 0
             if ee_que.qsize() < max_size:
-                if j in skip_list:
+                if j in hr_list:
                     j += 1
-                    if j % max_iterator == 0:
-                        j = 0
                 else:
-                    sample = dataset[j]
-                    q, _, feat, ans, _, _, _ = sample
-                    ee_que.put((q, feat, ans))
+                    ee_que.put(dataset[j])
+                    j += 1
+                if j % max_iterator == 0:
+                    j = 0
+            
+            if pg_que.qsize() < max_size:
+                if k in hr_list:
+                    pg_que.put(dataset[k])
+                    k += 1
+                else:
+                    k += 1
+                if k % max_iterator == 0:
+                    k = 0
+            
             for _ in range(skip_que.qsize()):
                 index = skip_que.get()
                 if index < 0:
-                    skip_list.remove(abs(index))
+                    hr_list.remove(abs(index))
                 else:
-                    skip_list.append(index)
-            
+                    hr_list.append(index)
+
+def make_HR_paths(args, pg, ee, loader):
+    hr_list = []
+    for batch in loader:
+        q, _, feat, ans, _, _, j = batch
+        program_pred = pg.reinforce_sample(q.cuda())
+        scores = ee(feat.cuda(), program_pred)
+        _, preds = scores.data.cpu().max(1)
+        for i in range(preds.size(0)):
+            if preds[i] == ans[i]:
+                hr_list.append(j[i])
+                q_name = '-'.join(str(int(e)) for e in q[i] if e != 0)
+                q_name = q_name + '/'
+                p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
+                path = args.high_reward_path + q_name
+                if not os.path.exists(path):
+                    os.mkdir(path)
+                torch.save(program_pred[i], path+p_name)
+    return hr_list
+
+def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
+    hr_folder = args.high_reward_path
+    bf_folder = args.bf_load_path
+    for i in len(questions):
+        q_name = '-'.join(str(int(e)) for e in questions[i] if e != 0)
+        p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
+        if remove:
+            os.remove(bf_folder+q_name)
+            os.remove(hr_folder+q_name+'/'+p_name+'.pt')
+            skip_que.put(-index[i])
+
+        else:
+            skip_que.put(index[i])
+            if not os.path.exists(hr_folder+q_name):
+                os.makedirs(hr_folder+q_name)
+                torch.save(program_pred[i], hr_folder+q_name+'/'+p_name+'.pt')
+
+def load_hr_paths(args, question):
+    q_name = '-'.join(str(int(e)) for e in question if e != 0)
+    p_name = os.listdir(args.high_reward_path + q_name)[0]
+    return torch.load(args.high_reward_path + q_name + '/' + p_name)
 
 def clean_up(args):
     bf_path = args.bf_load_path + '/'
@@ -298,7 +330,37 @@ def clean_up(args):
     os.mkdir(hr_path)
     os.mkdir(bf_path)
            
+def spawn_MAPO(args, pg, ee, cpu_count, MAPO_loader_kwargs, vocab, hr_list):
+    if args.MAPO_max_cpus is not None:
+        cpu_count = min(cpu_count, args.MAPO_max_cpus)
+    if args.info:
+        print('MAPO will use %d CPUs' % cpu_count)
+    set_mode('eval', [pg, ee])
+    processes = []
+    pg_que = mp.Queue()
+    MAPO_que = mp.Queue()
+    ee_que = mp.Queue()
+    skip_que = mp.Queue()
+    wait_que = mp.Queue()
+    p = mp.Process(target=MAPO_loader, args=(args, hr_list, MAPO_loader_kwargs, 
+                                             MAPO_que, pg_que, ee_que, skip_que, wait_que,
+                                             args.MAPO_qsize))
+    p.start()
+    processes.append(p)
+    if args.info:
+        print('Clevr dataloader spawned')
+        
+    for cpu in range(cpu_count-2):
+        p = mp.Process(target=MAPO_CPU, args=(args, pg.cpu(), ee.cpu(), 
+                                              MAPO_que, skip_que, vocab, cpu))
+ 
+        p.start() 
+        processes.append(p)
+        if args.info:
+            print('MAPO worker %s spawned' % str(cpu))
+            
+    return pg_que, ee_que, wait_que, skip_que
     
     
 
-            
+        
