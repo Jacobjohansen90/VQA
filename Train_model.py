@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     #Samples and shuffeling
     parser.add_argument('--shuffle_train_data', default=True, type=int)
-    parser.add_argument('--num_PG_samples', default=None, type=int)
+    parser.add_argument('--num_PG_samples', default=5000, type=int)
     parser.add_argument('--num_train_samples', default=None, type=int) 
     parser.add_argument('--num_val_samples', default=None, type=int)
     #If None we load all examples
@@ -65,8 +65,8 @@ if __name__ == '__main__':
             choices=['PG', 'EE', 'MAPO', 'all'])
 
     # Start from an existing checkpoint
-    parser.add_argument('--pg_start_from', default="../Data/models/PG_10k.pt")
-    parser.add_argument('--ee_start_from', default="../Data/models/EE_10k.pt")
+    parser.add_argument('--pg_start_from', default=None)
+    parser.add_argument('--ee_start_from', default=None)
 
     #Bloom Filter options
     parser.add_argument('--bf_est_ele', default=10**3, type=int)
