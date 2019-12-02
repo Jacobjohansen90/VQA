@@ -8,7 +8,7 @@ Created on Thu Sep 26 15:27:24 2019
 import Functions as func
 import torch
 import argparse
-from DataLoader import ClevrDataLoader
+from DataLoader import MyClevrDataLoader
 import torch.multiprocessing as mp
 
 
@@ -34,10 +34,7 @@ if __name__ == '__main__':
 
     #Amount of times we train with postives and negatives examples in one pass
     parser.add_argument('--ee_train_count', default=1, type=int)
-    parser.add_argument('--pg_train_count', default=1, type=int)
-    
-    #Oversampling
-    parser.add_argument('--oversample', default=False)
+    parser.add_argument('--pg_train_count', default=1, type=int)    
 
     #Training length / early stopping
     parser.add_argument('--num_iterations', default=200000, type=int)
@@ -47,13 +44,16 @@ if __name__ == '__main__':
     #Samples and shuffeling
     parser.add_argument('--shuffle_train_data', default=True, type=int)
     parser.add_argument('--num_PG_samples', default=5000, type=int)
-    parser.add_argument('--num_train_samples', default=None, type=int) 
+    parser.add_argument('--PG_balanced_sampling', default=True)
+    parser.add_argument('--PG_num_of_each', default=10, type=int) #No larger than 24
+    parser.add_argument('--oversample', default=True)
+    parser.add_argument('--num_train_samples', default=5000, type=int) 
     parser.add_argument('--num_val_samples', default=None, type=int)
     #If None we load all examples
 
     # Optimization options
     parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--learning_rate', default=1e-4, type=float)
+    parser.add_argument('--learning_rate', default=5e-5, type=float)
     parser.add_argument('--reward_decay', default=0.99, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
@@ -61,12 +61,12 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_every', default=1000, type=int)
 
     # What type of model to use and which parts to train
-    parser.add_argument('--model_type', default='all',
+    parser.add_argument('--model_type', default='MAPO',
             choices=['PG', 'EE', 'MAPO', 'all'])
 
     # Start from an existing checkpoint
-    parser.add_argument('--pg_start_from', default=None)
-    parser.add_argument('--ee_start_from', default=None)
+    parser.add_argument('--pg_start_from', default='../Data/models/PG_5k.pt')
+    parser.add_argument('--ee_start_from', default='../Data/models/EE_5k.pt')
 
     #Bloom Filter options
     parser.add_argument('--bf_est_ele', default=10**3, type=int)
@@ -90,6 +90,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_path', default='../Data/models/')
     parser.add_argument('--bf_load_path', default='../Data/bloom_filters/')
     parser.add_argument('--oversampling_list', default='../Data/oversample.json')
+    parser.add_argument('--path_to_index_file', default='../Data/ans_to_index.json')
     
     #Dataloader params
     parser.add_argument('--feature_dim', default='1024,14,14')
@@ -133,7 +134,7 @@ if __name__ == '__main__':
             'max_samples': args.num_val_samples,
             'num_workers': args.loader_num_workers}
 
-    val_loader = ClevrDataLoader(**val_loader_kwargs)
+    val_loader = MyClevrDataLoader(**val_loader_kwargs)
     
     if args.model_type == 'all':
         model = ['PG', 'EE', 'MAPO']
@@ -186,8 +187,14 @@ if __name__ == '__main__':
             'batch_size':args.batch_size,
             'shuffle': args.shuffle_train_data,
             'max_samples': num_train_samples,
-            'num_workers': args.loader_num_workers}
-        train_loader = ClevrDataLoader(**train_loader_kwargs)    
+            'num_workers': args.loader_num_workers,
+            'balanced': args.PG_balanced_sampling,
+            'balanced_n':args.PG_num_of_each,
+            'oversample':args.oversample,
+            'path_to_index': args.path_to_index_file,
+            'model':model_}
+        
+        train_loader = MyClevrDataLoader(**train_loader_kwargs)    
         
         
         if model_ == 'MAPO':
@@ -196,7 +203,7 @@ if __name__ == '__main__':
             if args.MAPO_clean_up:
                 func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
-            hr_list = func.make_hr_paths(args, program_generator, execution_engine, train_loader)            
+            hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
             
             #Spawn MAPO workers, dataloaders and bloom filter checkers          
             cpu_count = mp.cpu_count()
@@ -210,18 +217,19 @@ if __name__ == '__main__':
             execution_engine.cuda()    
 
             #Placeholders for loading
-            questions = torch.zeros(args.batch_size, 46)
+            questions = torch.zeros(args.batch_size, 46).long()
             feats = torch.zeros(args.batch_size, 1024, 24, 24)
-            answers = torch.zeros(args.batch_size)
-            index = torch.zeros(args.batch_size)
-            programs = torch.zeros(args.batch_size, 30)
+            answers = torch.zeros(args.batch_size).long()
+            index = torch.zeros(args.batch_size).long()
+            programs = torch.zeros(args.batch_size, 30).long()
         
         stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
                  'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}
         
         t, epoch = 0,0
-        _loss = []
+        pg_loss = []
+        ee_loss = []
         break_counter = 0
         cont = True 
         
@@ -229,46 +237,46 @@ if __name__ == '__main__':
         
         while cont:
             if model_ == 'PG':
-                for batch in train_loader:
+                while True:
                     t += 1
-                    questions, _, feats, answers, programs, _, _ = batch
+                    questions, _, feats, answers, programs, _, _ = train_loader.batch()
                     pg_optimizer.zero_grad()
                     loss = program_generator(questions.cuda(), programs.cuda())
                     loss.backward()
-                    _loss.append(loss.item())
+                    pg_loss.append(loss.item())
                     pg_optimizer.step()
                    
                     if t % args.checkpoint_every == 0:
                         stats, break_counter, best_pg_state, best_ee_state =\
                         func.checkpoint_func(args, model_, program_generator, execution_engine, 
                                              train_loader, val_loader, t, epoch, stats,
-                                             model_name, _loss, pg_kwargs, ee_kwargs, 
+                                             model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                              vocab, break_counter, best_pg_state, best_ee_state)
-                        _loss = []
+                        pg_loss = []
                         
                     if break_counter >= args.break_after:
                         cont = False
                         break
                     
             elif model_ == 'EE':
-                for batch in train_loader:
+                while True:
                     t += 1
-                    questions, _, feats, answers, _, _, _ = batch
+                    questions, _, feats, answers, _, _, _ = train_loader.batch()
                     programs_pred = program_generator.reinforce_sample(questions.cuda())
                     scores = execution_engine(feats.cuda(), programs_pred.cuda())
                     ee_optimizer.zero_grad()
                     loss = loss_fn(scores, answers)
                     loss.backward()
-                    _loss.append(loss.item())
+                    ee_loss.append(loss.item())
                     ee_optimizer.step()
 
                     if t % args.checkpoint_every == 0:
                         stats, break_counter, best_pg_state, best_ee_state =\
                         func.checkpoint_func(args, program_generator, execution_engine, 
                                              train_loader, val_loader, t, epoch, stats,
-                                             model_name, _loss, pg_kwargs, ee_kwargs, 
+                                             model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                              vocab, break_counter, best_pg_state, best_ee_state)
-                        _loss = []
+                        ee_loss = []
                         
                     if break_counter >= args.break_counter:
                         cont = False
@@ -287,7 +295,7 @@ if __name__ == '__main__':
                     pg_optimizer.zero_grad()
                     loss = program_generator(questions.cuda(), programs.cuda())
                     loss.backward()
-                    _loss.append(loss.item())
+                    pg_loss.append(loss.item())
                     pg_optimizer.step()
 
                     #Check that all samples are positive else update positive list
@@ -301,7 +309,7 @@ if __name__ == '__main__':
                     ee_optimizer.zero_grad()
                     loss = loss_fn(scores, answers)
                     loss.backward()
-                    _loss.append(loss.item())
+                    ee_loss.append(loss.item())
                     ee_optimizer.step()
 
                 for _ in range(args.ee_train_count):
@@ -320,9 +328,8 @@ if __name__ == '__main__':
                     ee_optimizer.zero_grad()
                     loss = loss_fn(scores, answers)
                     loss.backward()
-                    _loss.append(loss.item())
+                    ee_loss.append(loss.item())
                     ee_optimizer.step()
-                        
                         
                 if t % args.checkpoint_every == 0:
                     #We need to make sure only one dataloader is laoding
@@ -334,9 +341,10 @@ if __name__ == '__main__':
                     stats, break_counter, best_pg_state, best_ee_state =\
                     func.checkpoint_func(args, program_generator, execution_engine, 
                                          train_loader, val_loader, t, epoch, stats,
-                                         model_name, _loss, pg_kwargs, ee_kwargs, 
+                                         model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                          vocab, break_counter, best_pg_state, best_ee_state)
-                    _loss = []
+                    pg_loss = []
+                    ee_loss = []
                     wait_que.put(1)
                 if break_counter >= args.break_counter:
                     cont = False

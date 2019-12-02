@@ -19,8 +19,8 @@ from MAPO_workers import MAPO_CPU
 
 #Auto model namer
 def auto_namer(model, args):
-    if args.num_train_samples is not None:
-        model_name = model+'_'+str(int(args.num_train_samples)//1000)+'k'
+    if args.num_PG_samples is not None:
+        model_name = model+'_'+str(int(args.num_PG_samples)//1000)+'k'
     else:
         model_name = model+'_'+'700k'
     return model_name
@@ -52,6 +52,8 @@ def parse_int_list(s):
 
 #Program Generator
 def load_program_generator(path):
+    if not path.endswith('.pt'):
+        path += '.pt'    
     checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
     kwargs = checkpoint['program_generator_kwargs']
     state = checkpoint['program_generator_state']
@@ -85,6 +87,8 @@ def get_program_generator(vocab, args):
 
 #Execution Engine
 def load_execution_engine(path, info):
+    if not path.endswith('.pt'):
+        path += '.pt'
     checkpoint = torch.load(path, map_location=lambda storage, loc: storage)
     kwargs = checkpoint['execution_engine_kwargs']
     state = checkpoint['execution_engine_state']
@@ -137,9 +141,11 @@ def get_state(m):
             
 def check_accuracy(args, model, program_generator, execution_engine, loader):
     set_mode('eval', [program_generator, execution_engine])
+    loader.eval_mode()
     num_correct, num_samples = 0,0
-    for batch in loader:
-        questions, _, feats, answers, programs, _, _ = batch
+    done = False
+    while not done:
+        questions, _, feats, answers, programs, _, _, done = loader.batch()
         scores = None
         programs_pred = program_generator.reinforce_sample(questions.cuda())
         if model == 'PG':
@@ -283,8 +289,10 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
 
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
-    for batch in loader:
-        q, _, feat, ans, _, _, j = batch
+    loader.eval_mode()
+    done = False
+    while not done:
+        q, _, feat, ans, _, _, j, done = loader.batch()
         program_pred = pg.reinforce_sample(q.cuda())
         scores = ee(feat.cuda(), program_pred)
         _, preds = scores.data.cpu().max(1)
