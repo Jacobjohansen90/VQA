@@ -10,8 +10,7 @@ import torch
 from torch.autograd import Variable
 from probables import CountingBloomFilter as CBF
 import os
-import random
-import time
+
 
 #%% Options
 

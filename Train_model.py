@@ -11,15 +11,6 @@ import argparse
 from DataLoader import MyClevrDataLoader
 import torch.multiprocessing as mp
 
-
-#class_counter = torch.Tensor([0,0,0,0,48658,57907,24,29855,15256,7418,
-#                              3615,1662,647,259,105,7873,7926,21014,7731,
-#                              21051,7786,7778,31342,31353,143713,7973,
-#                              7797,31477,31587,21087,7974,139121])
-
-
-#TODO: Add oversampling
-#TODO: Add random load order in MAPO batch loader
 #TODO: Add smarter strongly supervised sampling
 #TODO: Add smarter novel path method since program is predicted in reverse
 #TODO: Load stats properbly
@@ -209,9 +200,11 @@ if __name__ == '__main__':
             cpu_count = mp.cpu_count()
             execution_engine.share_memory()
             program_generator.share_memory()
-            pg_que, ee_que, wait_que, skip_que = func.spawn_MAPO(args, program_generator, 
-                                                                 execution_engine, cpu_count,
-                                                                 train_loader_kwargs, vocab, hr_list)
+            
+            pg_que, ee_que, wait_que, skip_que, processes = func.spawn_MAPO(args, program_generator, 
+                                                                            execution_engine, cpu_count,
+                                                                            train_loader_kwargs, 
+                                                                            vocab, hr_list)
             #Set model to GPU            
             program_generator.cuda()
             execution_engine.cuda()    

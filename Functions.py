@@ -235,12 +235,10 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
     question_h5_path = loader_kwargs.pop('question_h5')
     image_idx_start_from = loader_kwargs.pop('image_idx_start_from', None)
     
-    
     with h5py.File(question_h5_path, 'r') as question_h5:
-        dataset = ClevrDataset(question_h5, feature_h5, vocab, mode,
-                                        image_h5=image_h5,
-                                        max_samples=max_samples,
-                                        image_idx_start_from=image_idx_start_from)
+        dataset = ClevrDataset(False, False, question_h5, feature_h5, vocab, mode,
+                               image_h5=image_h5, max_samples=max_samples,
+                               image_idx_start_from=image_idx_start_from)
 
         max_iterator = len(dataset.all_answers)
         i = 0; j = 0; k = 0
@@ -345,6 +343,8 @@ def spawn_MAPO(args, pg, ee, cpu_count, MAPO_loader_kwargs, vocab, hr_list):
         print('MAPO will use %d CPUs' % cpu_count)
     set_mode('eval', [pg, ee])
     processes = []
+
+
     pg_que = mp.Queue()
     MAPO_que = mp.Queue()
     ee_que = mp.Queue()
@@ -366,8 +366,7 @@ def spawn_MAPO(args, pg, ee, cpu_count, MAPO_loader_kwargs, vocab, hr_list):
         processes.append(p)
         if args.info:
             print('MAPO worker %s spawned' % str(cpu))
-            
-    return pg_que, ee_que, wait_que, skip_que
+    return pg_que, ee_que, wait_que, skip_que, processes
     
     
 
