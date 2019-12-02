@@ -14,12 +14,12 @@ from DataLoader import ClevrDataset
 import h5py
 import os
 import shutil
-import torch.multiprocessing as mp
-from MAPO_workers import MAPO_CPU
 
 #Auto model namer
 def auto_namer(model, args):
-    if args.num_PG_samples is not None:
+    if args.PG_balanced_sampling:
+        model_name = model+'_'+str(int(args.num_PG_num_of_each))+'_samples'
+    elif args.num_PG_samples is not None:
         model_name = model+'_'+str(int(args.num_PG_samples)//1000)+'k'
     else:
         model_name = model+'_'+'700k'
@@ -212,7 +212,20 @@ def checkpoint_func(args, model, program_generator, execution_engine,
     return stats, break_counter, best_pg_state, best_ee_state
 
 #MAPO Functions  
-def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait_que, max_size):
+def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, wait_que, vocab):
+    loader_kwargs = {
+    'question_h5': args.train_questions_h5,
+    'feature_h5': args.train_features_h5,
+    'vocab':vocab,
+    'batch_size':args.batch_size,
+    'shuffle': args.shuffle_train_data,
+    'max_samples': None,
+    'num_workers': args.loader_num_workers,
+    'balanced': args.PG_balanced_sampling,
+    'balanced_n':args.PG_num_of_each,
+    'oversample':args.oversample,
+    'path_to_index': args.path_to_index_file,
+    'model': 'MAPO'}
     if 'question_h5' not in loader_kwargs:
             raise ValueError('Must give question_q5')
     if 'feature_h5'  not in loader_kwargs:
@@ -252,7 +265,7 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
                     continue
                 wait_que.get()
             
-            if MAPO_que.qsize() < max_size:
+            if MAPO_que.qsize() < args.MAPO_qsize:
                 if i in hr_list:
                     i += 1
                 else:
@@ -260,7 +273,7 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
                     i += 1
                 if i % max_iterator == 0:
                     i = 0
-            if ee_que.qsize() < max_size:
+            if ee_que.qsize() < args.MAPO_qsize:
                 if j in hr_list:
                     j += 1
                 else:
@@ -269,7 +282,7 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
                 if j % max_iterator == 0:
                     j = 0
             
-            if pg_que.qsize() < max_size:
+            if pg_que.qsize() < args.MAPO_qsize:
                 if k in hr_list:
                     pg_que.put(dataset[k])
                     k += 1
@@ -285,6 +298,7 @@ def MAPO_loader(hr_list, loader_kwargs, MAPO_que, pg_que, ee_que, skip_que, wait
                 else:
                     hr_list.append(index)
 
+            
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
     loader.eval_mode()
@@ -296,7 +310,7 @@ def make_HR_paths(args, pg, ee, loader):
         _, preds = scores.data.cpu().max(1)
         for i in range(preds.size(0)):
             if preds[i] == ans[i]:
-                hr_list.append(j[i])
+                hr_list.append(int(j[i]))
                 q_name = '-'.join(str(int(e)) for e in q[i] if e != 0)
                 q_name = q_name + '/'
                 p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
@@ -309,7 +323,7 @@ def make_HR_paths(args, pg, ee, loader):
 def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
     hr_folder = args.high_reward_path
     bf_folder = args.bf_load_path
-    for i in len(questions):
+    for i in range(questions.size(0)):
         q_name = '-'.join(str(int(e)) for e in questions[i] if e != 0)
         p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
         if remove:
@@ -323,7 +337,7 @@ def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
                 os.makedirs(hr_folder+q_name)
                 torch.save(program_pred[i], hr_folder+q_name+'/'+p_name+'.pt')
 
-def load_hr_paths(args, question):
+def load_hr_program(args, question):
     q_name = '-'.join(str(int(e)) for e in question if e != 0)
     p_name = os.listdir(args.high_reward_path + q_name)[0]
     return torch.load(args.high_reward_path + q_name + '/' + p_name)
@@ -336,37 +350,7 @@ def clean_up(args):
     os.mkdir(hr_path)
     os.mkdir(bf_path)
            
-def spawn_MAPO(args, pg, ee, cpu_count, MAPO_loader_kwargs, vocab, hr_list):
-    if args.MAPO_max_cpus is not None:
-        cpu_count = min(cpu_count, args.MAPO_max_cpus)
-    if args.info:
-        print('MAPO will use %d CPUs' % cpu_count)
-    set_mode('eval', [pg, ee])
-    processes = []
 
-
-    pg_que = mp.Queue()
-    MAPO_que = mp.Queue()
-    ee_que = mp.Queue()
-    skip_que = mp.Queue()
-    wait_que = mp.Queue()
-    p = mp.Process(target=MAPO_loader, args=(args, hr_list, MAPO_loader_kwargs, 
-                                             MAPO_que, pg_que, ee_que, skip_que, wait_que,
-                                             args.MAPO_qsize))
-    p.start()
-    processes.append(p)
-    if args.info:
-        print('Clevr dataloader spawned')
-        
-    for cpu in range(cpu_count-2):
-        p = mp.Process(target=MAPO_CPU, args=(args, pg.cpu(), ee.cpu(), 
-                                              MAPO_que, skip_que, vocab, cpu))
- 
-        p.start() 
-        processes.append(p)
-        if args.info:
-            print('MAPO worker %s spawned' % str(cpu))
-    return pg_que, ee_que, wait_que, skip_que, processes
     
     
 

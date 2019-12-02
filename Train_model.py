@@ -10,7 +10,9 @@ import torch
 import argparse
 from DataLoader import MyClevrDataLoader
 import torch.multiprocessing as mp
+from MAPO_workers import MAPO_CPU
 
+#TODO: Add random load order in MAPO batch loader
 #TODO: Add smarter strongly supervised sampling
 #TODO: Add smarter novel path method since program is predicted in reverse
 #TODO: Load stats properbly
@@ -35,16 +37,18 @@ if __name__ == '__main__':
     #Samples and shuffeling
     parser.add_argument('--shuffle_train_data', default=True, type=int)
     parser.add_argument('--num_PG_samples', default=5000, type=int)
-    parser.add_argument('--PG_balanced_sampling', default=True)
-    parser.add_argument('--PG_num_of_each', default=10, type=int) #No larger than 24
+    parser.add_argument('--PG_balanced_sampling', default=True) #Overwrites num_PG_samples
+    parser.add_argument('--PG_num_of_each', default=20, type=int) #No larger than 24
     parser.add_argument('--oversample', default=True)
-    parser.add_argument('--num_train_samples', default=5000, type=int) 
+    parser.add_argument('--num_train_samples', default=None, type=int) 
     parser.add_argument('--num_val_samples', default=None, type=int)
     #If None we load all examples
 
     # Optimization options
     parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--learning_rate', default=5e-5, type=float)
+    parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
+    parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
+    parser.add_argument('--learing_rate_MAPO', default=5e-5, type=float)
     parser.add_argument('--reward_decay', default=0.99, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
@@ -153,14 +157,23 @@ if __name__ == '__main__':
                 args.pg_start_from = args.checkpoint_path
             if model_ == 'MAPO' and args.ee_start_from is None:
                 args.ee_start_from = args.checkpoint_path
-                
-        program_generator, pg_kwargs = func.get_program_generator(vocab, args)
-        pg_optimizer = torch.optim.Adam(program_generator.parameters(),
-                                        lr=args.learning_rate)
-        if model_ != 'PG':
+
+        program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
+
+        if model_ == 'PG':
+            pg_optimizer = torch.optim.Adam(program_generator.parameters(),
+                                            lr=args.learning_rate_PG)
+
+        else:
             execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
-            ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
-                                            lr=args.learning_rate)
+            if model_ == 'EE':
+                ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
+                                                lr=args.learning_rate_EE)
+            if model_ == 'MAPO':
+                pg_optimizer = torch.optim.Adam(program_generator.parameters(),
+                                            lr=args.learning_rate_MAPO)
+                ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
+                                                lr=args.learning_rate_MAPO)
             
         #Auto checkpointing        
         model_name = func.auto_namer(model_, args)
@@ -189,29 +202,52 @@ if __name__ == '__main__':
         
         
         if model_ == 'MAPO':
-                     
+                                 
+            #Spawn MAPO workers, dataloaders and bloom filter checkers       
+            cpu_count = mp.cpu_count()
+            execution_engine.share_memory()
+            program_generator.share_memory()
+            
+            if args.MAPO_max_cpus is not None:
+                cpu_count = min(cpu_count, args.MAPO_max_cpus)
+            if args.info:
+                print('MAPO will use %d CPUs' % cpu_count)
+            processes = []
+
+            pg_que = mp.Queue(); ee_que = mp.Queue()
+            skip_que = mp.Queue(); wait_que = mp.Queue(); MAPO_que = mp.Queue()
+            
+            for cpu in range(cpu_count-2):
+                p = mp.Process(target=MAPO_CPU, args=(args, program_generator.cpu(), 
+                                                      execution_engine.cpu(), 
+                                                      MAPO_que, skip_que, vocab, cpu))
+         
+                p.start() 
+                processes.append(p)
+                if args.info:
+                    print('MAPO worker %s spawned' % str(cpu))
+
+            #Set model to GPU            
+            program_generator.cuda()
+            execution_engine.cuda()
+
             #Fill high reward buffer
             if args.MAPO_clean_up:
                 func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
-            
-            #Spawn MAPO workers, dataloaders and bloom filter checkers          
-            cpu_count = mp.cpu_count()
-            execution_engine.share_memory()
-            program_generator.share_memory()
-            
-            pg_que, ee_que, wait_que, skip_que, processes = func.spawn_MAPO(args, program_generator, 
-                                                                            execution_engine, cpu_count,
-                                                                            train_loader_kwargs, 
-                                                                            vocab, hr_list)
-            #Set model to GPU            
-            program_generator.cuda()
-            execution_engine.cuda()    
+            p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, MAPO_que, pg_que, 
+                                                          ee_que, skip_que, wait_que, vocab))
+            p.start()
+            processes.append(p)            
+            if args.info:
+                print('Clevr dataloader spawned')
+
+    
 
             #Placeholders for loading
             questions = torch.zeros(args.batch_size, 46).long()
-            feats = torch.zeros(args.batch_size, 1024, 24, 24)
+            feats = torch.zeros(args.batch_size, 1024, 14, 14)
             answers = torch.zeros(args.batch_size).long()
             index = torch.zeros(args.batch_size).long()
             programs = torch.zeros(args.batch_size, 30).long()
@@ -271,7 +307,7 @@ if __name__ == '__main__':
                                              vocab, break_counter, best_pg_state, best_ee_state)
                         ee_loss = []
                         
-                    if break_counter >= args.break_counter:
+                    if break_counter >= args.break_after:
                         cont = False
                         break
 
@@ -282,7 +318,7 @@ if __name__ == '__main__':
                     i = 0
                     while i < args.batch_size:
                         questions[i], _, feats[i], answers[i], _, _, index[i] = pg_que.get()
-                        programs[i] = func.load_hr_program(questions[i])
+                        programs[i] = func.load_hr_program(args, questions[i])
                         i += 1
                     #Train the PG
                     pg_optimizer.zero_grad()
@@ -296,11 +332,11 @@ if __name__ == '__main__':
                     _, preds = scores.data.cpu().max(1)
                     I = (preds == answers)
                     if I.sum() != args.batch_size:
-                        func.update_hr_paths(args, programs[~I], questions[~I], skip_que, index[~I], True)
+                        func.update_hr_paths(args, programs[~I], questions[~I], index[~I], skip_que, True)
 
                     #Train the EE
                     ee_optimizer.zero_grad()
-                    loss = loss_fn(scores, answers)
+                    loss = loss_fn(scores, answers.cuda())
                     loss.backward()
                     ee_loss.append(loss.item())
                     ee_optimizer.step()
@@ -309,17 +345,17 @@ if __name__ == '__main__':
                     #Negative examples
                     j = 0
                     while j < args.batch_size:
-                        questions[i], _, feats[i], answers[i], _, _, index[i] = ee_que.get()
+                        questions[j], _, feats[j], answers[j], _, _, index[j] = ee_que.get()
                         j += 1
                     programs_pred = program_generator.reinforce_sample(questions.cuda())
                     scores = execution_engine(feats.cuda(), programs_pred.cuda())
                     _, preds = scores.data.cpu().max(1)
                     I = (preds == answers)
                     if I.sum() != 0:
-                        func.update_hr_paths(args, programs_pred[I], questions[I], skip_que, index[I], False)
+                        func.update_hr_paths(args, programs_pred[I], questions[I], index[I], skip_que, False)
                     #Train the EE
                     ee_optimizer.zero_grad()
-                    loss = loss_fn(scores, answers)
+                    loss = loss_fn(scores, answers.cuda())
                     loss.backward()
                     ee_loss.append(loss.item())
                     ee_optimizer.step()
@@ -339,7 +375,7 @@ if __name__ == '__main__':
                     pg_loss = []
                     ee_loss = []
                     wait_que.put(1)
-                if break_counter >= args.break_counter:
+                if break_counter >= args.break_after:
                     cont = False
                     break
 
