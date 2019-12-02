@@ -7,7 +7,6 @@ Created on Thu Oct 10 11:32:31 2019
 """
 
 import torch
-from torch.autograd import Variable
 from probables import CountingBloomFilter as CBF
 import os
 

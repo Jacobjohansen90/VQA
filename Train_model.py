@@ -49,19 +49,18 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learing_rate_MAPO', default=5e-5, type=float)
-    parser.add_argument('--reward_decay', default=0.99, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
     parser.add_argument('--checkpoint_every', default=1000, type=int)
 
     # What type of model to use and which parts to train
-    parser.add_argument('--model_type', default='MAPO',
+    parser.add_argument('--model_type', default='all',
             choices=['PG', 'EE', 'MAPO', 'all'])
 
     # Start from an existing checkpoint
-    parser.add_argument('--pg_start_from', default='../Data/models/PG_5k.pt')
-    parser.add_argument('--ee_start_from', default='../Data/models/EE_5k.pt')
+    parser.add_argument('--pg_start_from', default=None)
+    parser.add_argument('--ee_start_from', default=None)
 
     #Bloom Filter options
     parser.add_argument('--bf_est_ele', default=10**3, type=int)
@@ -250,7 +249,7 @@ if __name__ == '__main__':
             feats = torch.zeros(args.batch_size, 1024, 14, 14)
             answers = torch.zeros(args.batch_size).long()
             index = torch.zeros(args.batch_size).long()
-            programs = torch.zeros(args.batch_size, 30).long()
+            programs = torch.zeros(args.batch_size, args.length_output).long()
         
         stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
