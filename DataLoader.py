@@ -255,7 +255,7 @@ class MyClevrDataLoader():
         self.answers = torch.zeros(self.batch_size,1).long()
         self.indexs = torch.zeros(self.batch_size,1).long()
         self.program_seq = torch.zeros(self.batch_size,30).long()
-        self.images = None #torch.zeros(self.batch_size)
+        self.images = torch.zeros(self.batch_size)
         self.program_struct = []
         
     def batch(self):
