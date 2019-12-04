@@ -17,8 +17,8 @@ import shutil
 
 #Auto model namer
 def auto_namer(model, args):
-    if args.PG_balanced_sampling:
-        model_name = model+'_'+str(int(args.num_PG_num_of_each))+'_samples'
+    if args.PG_num_of_each is not None:
+        model_name = model+'_'+str(int(args.num_PG_samples)//1000)+'k_'+str(args.PG_num_of_each)+'_each'
     elif args.num_PG_samples is not None:
         model_name = model+'_'+str(int(args.num_PG_samples)//1000)+'k'
     else:
@@ -139,13 +139,19 @@ def get_state(m):
         state[k] = v.clone()
     return state
             
-def check_accuracy(args, model, program_generator, execution_engine, loader):
+def check_accuracy(args, model, program_generator, execution_engine, loader, mode):
     set_mode('eval', [program_generator, execution_engine])
-    loader.eval_mode()
+    if model != 'MAPO':
+        loader.eval_mode()
+    elif model == 'MAPO' and mode != 'train':
+        loader.eval_mode()
     num_correct, num_samples = 0,0
     done = False
     while not done:
-        questions, _, feats, answers, programs, _, _, done = loader.batch()
+        if model == 'MAPO' and mode == 'train':
+            questions, feats, answers, done = loader.get()
+        else:
+            questions, _, feats, answers, programs, _, _, done = loader.batch()
         scores = None
         programs_pred = program_generator.reinforce_sample(questions.cuda())
         if model == 'PG':
@@ -158,11 +164,10 @@ def check_accuracy(args, model, program_generator, execution_engine, loader):
                         num_correct += 1
 
         else: 
-            scores = execution_engine(feats, programs_pred)
+            scores = execution_engine(feats.cuda(), programs_pred)
             _, preds = scores.data.cpu().max(1)
-            num_correct += (preds == answers).sum()
+            num_correct += (preds == answers.squeeze(1)).sum()
             num_samples += preds.size(0)
-        
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
@@ -170,14 +175,20 @@ def check_accuracy(args, model, program_generator, execution_engine, loader):
     
 def checkpoint_func(args, model, program_generator, execution_engine,
                     train_loader, val_loader, t, epoch, stats,
-                    model_name, _loss, pg_kwargs, ee_kwargs, 
+                    model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                     vocab, break_counter, best_pg_state, best_ee_state):
     if args.info:
         print('Calculating accuracy')
+    if model == 'PG':
+        _loss = pg_loss
+    elif model == 'EE':
+        _loss = ee_loss
+    elif model == 'MAPO':
+        _loss = pg_loss + ee_loss
     train_acc = check_accuracy(args, model, program_generator,
-                                execution_engine, train_loader)
+                                execution_engine, train_loader, 'train')
     val_acc = check_accuracy(args, model, program_generator,
-                              execution_engine, val_loader)
+                              execution_engine, val_loader, 'val')
     stats['train_accs'].append(train_acc)
     stats['val_accs'].append(val_acc)
     stats['val_accs_ts'].append(t)
@@ -212,16 +223,15 @@ def checkpoint_func(args, model, program_generator, execution_engine,
     return stats, break_counter, best_pg_state, best_ee_state
 
 #MAPO Functions  
-def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, wait_que, vocab):
+def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, eval_que, vocab):
     loader_kwargs = {
     'question_h5': args.train_questions_h5,
     'feature_h5': args.train_features_h5,
     'vocab':vocab,
     'batch_size':args.batch_size,
     'shuffle': args.shuffle_train_data,
-    'max_samples': None,
+    'max_samples': args.num_train_samples,
     'num_workers': args.loader_num_workers,
-    'balanced': args.PG_balanced_sampling,
     'balanced_n':args.PG_num_of_each,
     'oversample':args.oversample,
     'path_to_index': args.path_to_index_file,
@@ -235,7 +245,7 @@ def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, wait_que, voc
         
     feature_h5_path = loader_kwargs.pop('feature_h5')
     feature_h5 = h5py.File(feature_h5_path, 'r')
-    
+        
     image_h5 = None
     if 'image_h5' in loader_kwargs:
         image_h5_path = loader_kwargs.pop('image_h5')
@@ -248,56 +258,76 @@ def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, wait_que, voc
     question_h5_path = loader_kwargs.pop('question_h5')
     image_idx_start_from = loader_kwargs.pop('image_idx_start_from', None)
     
-    with h5py.File(question_h5_path, 'r') as question_h5:
-        dataset = ClevrDataset(False, False, question_h5, feature_h5, vocab, mode,
-                               image_h5=image_h5, max_samples=max_samples,
-                               image_idx_start_from=image_idx_start_from)
+    question_h5 = h5py.File(question_h5_path, 'r')
+    dataset = ClevrDataset(False, False, question_h5, feature_h5, vocab, mode,
+                           image_h5=image_h5, max_samples=max_samples,
+                           image_idx_start_from=image_idx_start_from)
 
-        max_iterator = len(dataset.all_answers)
-        i = 0; j = 0; k = 0
-        while True:
-            if wait_que.qsize() > 0:
-                wait_que.put(1)
-                while wait_que.qsize == 2:
-                    continue
-                wait_que.get()
-                while wait_que.qsize == 0:
-                    continue
-                wait_que.get()
-            
-            if MAPO_que.qsize() < args.MAPO_qsize:
-                if i in hr_list:
-                    i += 1
-                else:
-                    MAPO_que.put(dataset[i])
-                    i += 1
-                if i % max_iterator == 0:
-                    i = 0
-            if ee_que.qsize() < args.MAPO_qsize:
-                if j in hr_list:
-                    j += 1
-                else:
-                    ee_que.put(dataset[j])
-                    j += 1
-                if j % max_iterator == 0:
-                    j = 0
-            
-            if pg_que.qsize() < args.MAPO_qsize:
-                if k in hr_list:
-                    pg_que.put(dataset[k])
-                    k += 1
-                else:
-                    k += 1
-                if k % max_iterator == 0:
-                    k = 0
-            
-            for _ in range(skip_que.qsize()):
-                index = skip_que.get()
-                if index < 0:
+    non_hr_list = list(range(len(dataset)))
+        
+    for i in non_hr_list:
+        if i in hr_list:
+            non_hr_list.remove(i)
+
+    i = 0; j = 0; k = 0; l = 0
+    done = False
+    q = torch.zeros(args.batch_size, 46).long()
+    f = torch.zeros(args.batch_size, 1024, 14, 14)
+    a = torch.zeros(args.batch_size, 1).long()
+    while True:
+        if eval_que.qsize() < 30:
+            for i in range(args.batch_size):
+                sample = dataset[l]
+                q[i] = sample[0]
+                f[i] = sample[2]
+                a[i] = sample[3]
+                l += 1
+                if l == len(dataset):
+                    done = True
+                    l = 0
+                    counter = i+1
+                    break
+            if not done:
+                eval_que.put((q,f,a,done))
+            elif done:
+                eval_que.put((q[:counter], f[:counter], a[:counter], done))
+                done = False
+
+        if MAPO_que.qsize() < args.MAPO_qsize:
+            index = non_hr_list[i]
+            i+= 1
+            MAPO_que.put(dataset[index])
+            if i % len(non_hr_list)== 0:
+                i = 0
+        if ee_que.qsize() < args.MAPO_qsize:
+            index = non_hr_list[j]
+            j += 1
+            ee_que.put(dataset[index])
+            if j % len(non_hr_list) == 0:
+                j = 0
+        if pg_que.qsize() < args.MAPO_qsize:
+            index = hr_list[k]
+            k += 1
+            pg_que.put(dataset[index])
+            if k % len(hr_list) == 0:
+                k = 0
+
+        for _ in range(skip_que.qsize()):
+            index = skip_que.get()
+            #We need these additional checks if either list is small, as a 
+            #sample might be in the que more than once, and thus returned
+            #here in the skip que more than once. 
+            if index < 0:
+                if abs(index) in hr_list:
                     hr_list.remove(abs(index))
-                else:
+                if abs(index) not in non_hr_list:
+                    non_hr_list.append(abs(index))
+            else:
+                if index not in hr_list:
                     hr_list.append(index)
-
+                if index in non_hr_list:
+                    non_hr_list.remove(index)
+                
             
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
