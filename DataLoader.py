@@ -126,6 +126,10 @@ class MyClevrDataLoader():
             self.shuffle_samples()
             
         self.max_index = len(self.sample_list)
+        if self.max_index > len(self.all_questions):
+            self.max_eval_index = len(self.all_questions)
+        else:
+            self.max_eval_index = self.max_index
         
         self.questions = torch.zeros(self.batch_size,46).long()
         self.feats = torch.zeros(self.batch_size,1024,14,14) 
@@ -185,7 +189,7 @@ class MyClevrDataLoader():
             return [self.questions, self.images, self.feats, self.answers, self.program_seq, self.program_struct, self.indexs]
         elif self.mode == 'eval':
             for j in range(self.batch_size):
-                index = self.sample_list[self.eval_index]
+                index = self.eval_index
                 self.eval_index += 1
                 
                 question = self.all_questions[index]
@@ -225,7 +229,7 @@ class MyClevrDataLoader():
                 self.program_seq[j][0:len(program_seq)] = program_seq
                 self.program_struct.append(program_json)
             
-                if self.eval_index == self.max_index:
+                if self.eval_index == self.max_eval_index:
                     self.mode = 'Train'
                     return [self.questions[:j+1], self.images[:j+1], self.feats[:j+1],
                             self.answers[:j+1], self.program_seq[:j+1], 
