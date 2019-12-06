@@ -189,7 +189,10 @@ class MyClevrDataLoader():
             return [self.questions, self.images, self.feats, self.answers, self.program_seq, self.program_struct, self.indexs]
         elif self.mode == 'eval':
             for j in range(self.batch_size):
-                index = self.eval_index
+                if len(self.sample_list) != len(self.all_questions):
+                    index = self.sample_list[self.eval_index]
+                else:
+                    index = self.eval_index
                 self.eval_index += 1
                 
                 question = self.all_questions[index]
