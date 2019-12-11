@@ -12,8 +12,6 @@ from DataLoader import MyClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
 
-#TODO: Add random load order in MAPO batch loader
-#TODO: Add smarter strongly supervised sampling
 #TODO: Add smarter novel path method since program is predicted in reverse
 #TODO: Load stats properbly
 #TODO: Create oversample.json during preprocessing
@@ -22,6 +20,7 @@ if __name__ == '__main__':
     mp.set_start_method('spawn')
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--multi_GPU', default=True) #Use all avalaible GPUs?
     parser.add_argument('--info', default=False)
     #Do you want all info or minimal?
 
@@ -38,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--shuffle_train_data', default=True, type=int)
     parser.add_argument('--num_PG_samples', default=1000, type=int)
     parser.add_argument('--PG_num_of_each', default=20, type=int) #No larger than 24
-    parser.add_argument('--oversample', default=False)
+    parser.add_argument('--oversample', default=True)
     parser.add_argument('--num_train_samples', default=None, type=int) 
     parser.add_argument('--num_val_samples', default=None, type=int)
     #If None we load all examples
@@ -69,7 +68,6 @@ if __name__ == '__main__':
     parser.add_argument('--MAPO_clean_up', default=1, type=int)
     parser.add_argument('--MAPO_max_cpus', default=20, type=int)
     parser.add_argument('--MAPO_qsize', default=320, type=int)
-
     parser.add_argument('--MAPO_sample_argmax', default=False)
     parser.add_argument('--MAPO_check_bf_argmax', default=False)
     
