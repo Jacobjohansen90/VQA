@@ -62,7 +62,7 @@ def load_program_generator(path):
     
     return model, kwargs
           
-def get_program_generator(vocab, args):
+def get_program_generator(vocab, args, multi_gpu=True):
     if args.pg_start_from is not None:
         pg, kwargs = load_program_generator(args.pg_start_from)
         cur_vocab_size = pg.encoder_embed.weight.size(0)
@@ -80,10 +80,11 @@ def get_program_generator(vocab, args):
         pg = Seq2Seq(**kwargs)
     pg.cuda()
     pg.train()
-#    if args.multi_GPU and torch.cuda.device_count() > 1:
-#        pg = torch.nn.DataParallel(pg)
-#        if args.info:
-#            print('Program Generator will use ', torch.cuda.device_count(), 'GPUs')
+    if multi_gpu:
+        if args.multi_GPU and torch.cuda.device_count() > 1:
+            pg = torch.nn.DataParallel(pg)
+            if args.info:
+                print('Program Generator will use ', torch.cuda.device_count(), 'GPUs')
     if args.info:
         print('Here is the program generator:')
         print(pg)
@@ -100,7 +101,7 @@ def load_execution_engine(path, info):
     model.load_state_dict(state)
     return model, kwargs
 
-def get_execution_engine(vocab, args):
+def get_execution_engine(vocab, args, multi_gpu=True):
     if args.ee_start_from is not None:
         ee, kwargs = load_execution_engine(args.ee_start_from, args.info)
     else:
@@ -119,11 +120,11 @@ def get_execution_engine(vocab, args):
         ee = ModuleNet(args.info, **kwargs)
     ee.cuda()
     ee.train()
-    if args.multi_GPU and torch.cuda.device_count() > 1:
-        ee = torch.nn.DataParallel(ee)
-        if args.info:
-            print('Execution Engine will use ', torch.cuda.device_count(), 'GPUs')
-
+    if multi_gpu:
+        if args.multi_GPU and torch.cuda.device_count() > 1:
+            ee = torch.nn.DataParallel(ee)
+            if args.info:
+                print('Execution Engine will use ', torch.cuda.device_count(), 'GPUs')    
     if args.info:
         print('Here is the execution engine:')
         print(ee)

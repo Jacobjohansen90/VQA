@@ -15,6 +15,7 @@ from MAPO_workers import MAPO_CPU
 #TODO: Add smarter novel path method since program is predicted in reverse
 #TODO: Load stats properbly
 #TODO: Create oversample.json during preprocessing
+#TODO: Add dataparallel support for PG and MAPO
 #%% Setup Params
 if __name__ == '__main__':
     mp.set_start_method('spawn')
@@ -154,22 +155,24 @@ if __name__ == '__main__':
             if model_ == 'MAPO' and args.ee_start_from is None:
                 args.ee_start_from = checkpoint_path
 
-        program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
 
         if model_ == 'PG':
+            program_generator, pg_kwargs = func.get_program_generator(vocab, args, False)        
             pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                             lr=args.learning_rate_PG)
 
-        else:
+        elif model_ == 'EE':
+            program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
             execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
-            if model_ == 'EE':
-                ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
+            ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
                                                 lr=args.learning_rate_EE)
-            if model_ == 'MAPO':
-                pg_optimizer = torch.optim.Adam(program_generator.parameters(),
+        elif model_ == 'MAPO':
+            program_generator, pg_kwargs = func.get_program_generator(vocab, args, False)
+            execution_engine, ee_kwargs = func.get_execution_engine(vocab, args, False)
+            pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                             lr=args.learning_rate_MAPO)
-                ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
-                                                lr=args.learning_rate_MAPO)
+            ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
+                                            lr=args.learning_rate_MAPO)
             
         #Auto checkpointing        
         model_name = func.auto_namer(model_, args)
