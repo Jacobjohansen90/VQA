@@ -368,7 +368,6 @@ def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
         q_name = '-'.join(str(int(e)) for e in questions[i] if e != 0)
         p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
         if remove:
-            os.remove(bf_folder+q_name)
             os.remove(hr_folder+q_name+'/'+p_name+'.pt')
             skip_que.put(-index[i])
 
@@ -377,6 +376,7 @@ def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
             if not os.path.exists(hr_folder+q_name):
                 os.makedirs(hr_folder+q_name)
                 torch.save(program_pred[i], hr_folder+q_name+'/'+p_name+'.pt')
+                os.remove(bf_folder+q_name)
 
 def load_hr_program(args, question):
     q_name = '-'.join(str(int(e)) for e in question if e != 0)
