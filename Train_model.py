@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
 
         if model_ == 'PG':
-            program_generator, pg_kwargs = func.get_program_generator(vocab, args, False)        
+            program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
             pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                             lr=args.learning_rate_PG)
 
@@ -166,8 +166,8 @@ if __name__ == '__main__':
             ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
                                                 lr=args.learning_rate_EE)
         elif model_ == 'MAPO':
-            program_generator, pg_kwargs = func.get_program_generator(vocab, args, False)
-            execution_engine, ee_kwargs = func.get_execution_engine(vocab, args, False)
+            program_generator, pg_kwargs = func.get_program_generator(vocab, args)
+            execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
             pg_optimizer = torch.optim.Adam(program_generator.parameters(),
                                             lr=args.learning_rate_MAPO)
             ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
