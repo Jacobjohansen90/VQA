@@ -9,8 +9,6 @@ Created on Wed Oct  2 12:27:55 2019
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-
 from Layers import ResidualBlock, Flatten 
 import Program_funcs as func
 

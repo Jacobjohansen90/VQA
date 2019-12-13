@@ -54,8 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_every', default=1000, type=int)
 
     # What type of model to use and which parts to train
-    parser.add_argument('--model_type', default='all',
-            choices=['PG', 'EE', 'MAPO', 'all'])
+    parser.add_argument('--model_type', default='all')
 
     # Start from an existing checkpoint
     parser.add_argument('--pg_start_from', default=None)
@@ -201,7 +200,7 @@ if __name__ == '__main__':
         
         if model_ == 'MAPO':
                                  
-            #Spawn MAPO workers, dataloaders and bloom filter checkers       
+            #Spawn MAPO workers and dataloader    
             cpu_count = mp.cpu_count()
             execution_engine.share_memory()
             program_generator.share_memory()

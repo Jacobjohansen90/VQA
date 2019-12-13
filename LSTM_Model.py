@@ -103,6 +103,7 @@ class Seq2Seq(nn.Module):
             h0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
         if c0 is None:
             c0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
+        self.decoder_LSTM.flatten_parameters() #Experimental
         rnn_output, (ht, ct) = self.decoder_LSTM(rnn_input, (h0, c0))
         
         rnn_output_2d = rnn_output.contiguous().view(N*T_out, H)
