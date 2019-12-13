@@ -86,6 +86,7 @@ class Seq2Seq(nn.Module):
         embed = self.encoder_embed(x)
         h0 = Variable(torch.zeros(L, N, H).type_as(embed.data))
         c0 = Variable(torch.zeros(L, N, H).type_as(embed.data))
+        self.encoder_LSTM.flatten_parameters()
         out, _ = self.encoder_LSTM(embed, (h0, c0))
         #Gets the hidden state for the last non NULL value
         idx = idx.view(N, 1, 1).expand(N, 1, H)
@@ -103,12 +104,10 @@ class Seq2Seq(nn.Module):
             h0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
         if c0 is None:
             c0 = Variable(torch.zeros(L, N, H).type_as(encoded.data))
-        self.decoder_LSTM.flatten_parameters() #Experimental
-        rnn_output, (ht, ct) = self.decoder_LSTM(rnn_input, (h0, c0))
-        
+        self.decoder_LSTM.flatten_parameters()
+        rnn_output, (ht, ct) = self.decoder_LSTM(rnn_input, (h0, c0))        
         rnn_output_2d = rnn_output.contiguous().view(N*T_out, H)
         output_logprobs = self.decoder_linear(rnn_output_2d).view(N, T_out, V_out)
-        
         return output_logprobs, ht, ct
     
     def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, argmax=True):
