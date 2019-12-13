@@ -80,10 +80,10 @@ def get_program_generator(vocab, args):
         pg = Seq2Seq(**kwargs)
     pg.cuda()
     pg.train()
-    if args.multi_GPU and torch.cuda.device_count() > 1:
-        pg = torch.nn.DataParallel(pg)
-        if args.info:
-            print('Program Generator will use ', torch.cuda.device_count(), 'GPUs')
+#    if args.multi_GPU and torch.cuda.device_count() > 1:
+#        pg = torch.nn.DataParallel(pg)
+#        if args.info:
+#            print('Program Generator will use ', torch.cuda.device_count(), 'GPUs')
     if args.info:
         print('Here is the program generator:')
         print(pg)
