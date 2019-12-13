@@ -80,6 +80,10 @@ def get_program_generator(vocab, args):
         pg = Seq2Seq(**kwargs)
     pg.cuda()
     pg.train()
+    if args.multi_GPU and torch.cuda.device_count() > 1:
+        pg = torch.nn.DataParallel(pg)
+        if args.info:
+            print('Program Generator will use ', torch.cuda.device_count(), 'GPUs')
     if args.info:
         print('Here is the program generator:')
         print(pg)
@@ -115,6 +119,11 @@ def get_execution_engine(vocab, args):
         ee = ModuleNet(args.info, **kwargs)
     ee.cuda()
     ee.train()
+    if args.multi_GPU and torch.cuda.device_count() > 1:
+        ee = torch.nn.DataParallel(ee)
+        if args.info:
+            print('Execution Engine will use ', torch.cuda.device_count(), 'GPUs')
+
     if args.info:
         print('Here is the execution engine:')
         print(ee)
@@ -202,6 +211,8 @@ def checkpoint_func(args, model, program_generator, execution_engine,
     else: 
         break_counter += 1
         improved_val = "-"
+    if round(train_acc,4) == 1:
+        break_counter = 10**6
     print('%s - %d - %f \t Train acc: %.4f \t Val acc: %.4f (%s)'  \
           % (model_name, t, sum(_loss)/len(_loss), train_acc, val_acc, improved_val))
         
