@@ -163,7 +163,7 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
         else:
             questions, _, feats, answers, programs, _, _, done = loader.batch()
         scores = None
-        programs_pred = program_generator.reinforce_sample(questions.cuda())
+        programs_pred = program_generator.module.reinforce_sample(questions.cuda())
         if model == 'PG':
             I1 = (programs_pred != 0)
             I2 = (programs != 0)
