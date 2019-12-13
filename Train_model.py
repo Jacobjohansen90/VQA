@@ -116,7 +116,8 @@ if __name__ == '__main__':
     #%%Training loop
     args = parser.parse_args()
     vocab = func.load_vocab(args.vocab_json)
-         
+    checkpoint_path = None
+    
     val_loader_kwargs = {
             'question_h5': args.val_questions_h5,
             'feature_h5': args.val_features_h5,
@@ -130,8 +131,7 @@ if __name__ == '__main__':
     if args.model_type == 'all':
         model = ['PG', 'EE', 'MAPO']
     else:
-        model = [args.model_type]
-
+        model = args.model_type.split('+')
     
     for model_ in model:
         print('Training %s' % model_)
@@ -150,9 +150,9 @@ if __name__ == '__main__':
         #Load previous trained models if needed
         if args.model_type == 'all':        
             if model_ == 'EE' and args.pg_start_from is None:
-                args.pg_start_from = args.checkpoint_path
+                args.pg_start_from = checkpoint_path
             if model_ == 'MAPO' and args.ee_start_from is None:
-                args.ee_start_from = args.checkpoint_path
+                args.ee_start_from = checkpoint_path
 
         program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
 
@@ -173,7 +173,7 @@ if __name__ == '__main__':
             
         #Auto checkpointing        
         model_name = func.auto_namer(model_, args)
-        args.checkpoint_path = args.checkpoint_path + model_name
+        checkpoint_path = args.checkpoint_path + model_name
         
         #Setup loss and train loader
         loss_fn = torch.nn.CrossEntropyLoss().cuda()      
@@ -229,6 +229,8 @@ if __name__ == '__main__':
             if args.MAPO_clean_up:
                 func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
+            print('Making HR paths')
+            print('Using ,',torch.cuda.device_count(),' GPUs')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, MAPO_que, pg_que, 
                                                           ee_que, skip_que, eval_que, vocab))
@@ -272,7 +274,8 @@ if __name__ == '__main__':
                         func.checkpoint_func(args, model_, program_generator, execution_engine, 
                                              train_loader, val_loader, t, epoch, stats,
                                              model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
-                                             vocab, break_counter, best_pg_state, best_ee_state)
+                                             vocab, break_counter, best_pg_state, best_ee_state,
+                                             checkpoint_path)
                         pg_loss = []
                         
                     if break_counter >= args.break_after:
@@ -296,7 +299,8 @@ if __name__ == '__main__':
                         func.checkpoint_func(args, model_, program_generator, execution_engine, 
                                              train_loader, val_loader, t, epoch, stats,
                                              model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
-                                             vocab, break_counter, best_pg_state, best_ee_state)
+                                             vocab, break_counter, best_pg_state, best_ee_state, 
+                                             checkpoint_path)
                         ee_loss = []
                         
                     if break_counter >= args.break_after:
@@ -360,7 +364,8 @@ if __name__ == '__main__':
                         func.checkpoint_func(args, model_, program_generator, execution_engine, 
                                              eval_que, val_loader, t, epoch, stats,
                                              model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
-                                             vocab, break_counter, best_pg_state, best_ee_state)
+                                             vocab, break_counter, best_pg_state, best_ee_state,
+                                             checkpoint_path)
                         pg_loss = []
                         ee_loss = []
                     if break_counter >= args.break_after:

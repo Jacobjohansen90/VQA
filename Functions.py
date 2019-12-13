@@ -185,7 +185,8 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
 def checkpoint_func(args, model, program_generator, execution_engine,
                     train_loader, val_loader, t, epoch, stats,
                     model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
-                    vocab, break_counter, best_pg_state, best_ee_state):
+                    vocab, break_counter, best_pg_state, best_ee_state,
+                    checkpoint_path):
     if args.info:
         print('Calculating accuracy')
     if model == 'PG':
@@ -226,10 +227,10 @@ def checkpoint_func(args, model, program_generator, execution_engine,
         checkpoint[k] = v
     if args.info:
         print('Saving checkpoint to %s' % args.checkpoint_path+'.pt')
-    torch.save(checkpoint, args.checkpoint_path+'.pt')
+    torch.save(checkpoint, checkpoint_path+'.pt')
     del checkpoint['program_generator_state']
     del checkpoint['execution_engine_state']
-    with open(args.checkpoint_path + '.json', 'w') as f:
+    with open(checkpoint_path + '.json', 'w') as f:
         json.dump(checkpoint, f)
     return stats, break_counter, best_pg_state, best_ee_state
 
