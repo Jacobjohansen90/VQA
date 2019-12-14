@@ -146,9 +146,7 @@ def get_state(m):
         return None
     state = {}
     for k, v in m.state_dict().items():
-        print(k)
-        print('------')
-        print(v)
+        k = k.replace('module.','') #Removes Dataparallel 'module' prefix
         state[k] = v.clone()
     return state
             
