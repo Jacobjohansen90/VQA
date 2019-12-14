@@ -54,10 +54,10 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_every', default=1000, type=int)
 
     # What type of model to use and which parts to train
-    parser.add_argument('--model_type', default='EE')
+    parser.add_argument('--model_type', default='all')
 
     # Start from an existing checkpoint
-    parser.add_argument('--pg_start_from', default='../Data/models/PG_3k_20_each.pt')
+    parser.add_argument('--pg_start_from', default=None)
     parser.add_argument('--ee_start_from', default=None)
 
     #Bloom Filter options
