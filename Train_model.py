@@ -150,10 +150,9 @@ if __name__ == '__main__':
         #Load previous trained models if needed
         if args.model_type == 'all':        
             if model_ == 'EE' and args.pg_start_from is None:
-                args.pg_start_from = checkpoint_path
-                print(args.pg_start_from)
+                args.pg_start_from = checkpoint_path + '.pt'
             if model_ == 'MAPO' and args.ee_start_from is None:
-                args.ee_start_from = checkpoint_path
+                args.ee_start_from = checkpoint_path + '.pt'
 
 
         if model_ == 'PG':
@@ -282,7 +281,7 @@ if __name__ == '__main__':
                                              checkpoint_path)
                         pg_loss = []
                         
-                    if True: #break_counter >= args.break_after:
+                    if break_counter >= args.break_after:
                         cont = False
                         break
                     
