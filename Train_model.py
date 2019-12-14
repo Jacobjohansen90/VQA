@@ -289,7 +289,10 @@ if __name__ == '__main__':
                 while True:
                     t += 1
                     questions, _, feats, answers, _, _, _ = train_loader.batch()
-                    programs_pred = program_generator.reinforce_sample(questions.cuda())
+                    if args.multi_GPU:
+                        programs_pred = program_generator.module.reinforce_sample(questions.cuda())
+                    else:
+                        programs_pred = program_generator.reinforce_sample(questions.cuda())
                     scores = execution_engine(feats.cuda(), programs_pred.cuda())
                     ee_optimizer.zero_grad()
                     loss = loss_fn(scores, answers.cuda().squeeze(1))
@@ -347,7 +350,10 @@ if __name__ == '__main__':
                         while j < args.batch_size:
                             questions[j], _, feats[j], answers[j], _, _, index[j] = ee_que.get()
                             j += 1
-                        programs_pred = program_generator.reinforce_sample(questions.cuda())
+                        if args.multi_GPU:
+                            programs_pred = program_generator.module.reinforce_sample(questions.cuda())
+                        else:
+                            programs_pred = program_generator.reinforce_sample(questions.cuda())    
                         scores = execution_engine(feats.cuda(), programs_pred.cuda())
                         _, preds = scores.data.cpu().max(1)
                         I = (preds == answers)
