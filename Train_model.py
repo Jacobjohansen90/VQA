@@ -151,6 +151,7 @@ if __name__ == '__main__':
         if args.model_type == 'all':        
             if model_ == 'EE' and args.pg_start_from is None:
                 args.pg_start_from = checkpoint_path
+                print(args.pg_start_from)
             if model_ == 'MAPO' and args.ee_start_from is None:
                 args.ee_start_from = checkpoint_path
 
@@ -281,7 +282,7 @@ if __name__ == '__main__':
                                              checkpoint_path)
                         pg_loss = []
                         
-                    if break_counter >= args.break_after:
+                    if True: #break_counter >= args.break_after:
                         cont = False
                         break
                     
