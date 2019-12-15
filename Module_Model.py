@@ -35,7 +35,7 @@ class ConcatBlock(nn.Module):
     def forward(self, x, y):
         out = torch.cat([x, y], 1) #Cat along depth
         out = F.relu(self.proj(out))
-        out = self.res_block(out)
+        out = self.ResidualBlock(out)
         return out
 
     def ResidualBlock(self, x):
@@ -138,7 +138,7 @@ class ModuleNet(nn.Module):
             num_inputs = func.get_num_inputs(fn_str)
             self.function_modules_num_inputs[fn_str] = num_inputs
             if fn_str == 'scene' or num_inputs == 1:
-                mod = ResidualBlock(module_dim, with_residual=module_residual,
+                mod = ConcatBlock.ResidualBlock(module_dim, with_residual=module_residual,
                                     with_batchnorm=module_batchnorm)
             elif num_inputs == 2:
                 mod = ConcatBlock(module_dim, with_residual=module_residual,
