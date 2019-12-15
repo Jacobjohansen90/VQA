@@ -198,15 +198,17 @@ class ModuleNet(nn.Module):
         N = feats.size(0)
         finale_module_outputs = []
         self.used_fns = torch.Tensor(program.size()).fill_(0)
+        print('0')
         for i in range(N):
             cur_output, _ = self.forward_modules_ints_helper(feats, program, i, 0)
             finale_module_outputs.append(cur_output)
+        print('1')
         self.used_fns = self.used_fns.type_as(program.data).float()
+        print('2')
         finale_module_outputs = torch.cat(finale_module_outputs, 0)
         return finale_module_outputs
     
     def forward(self, x, program):
-        print('made it to here')
         N = x.size(0)
         assert N == len(program)
         
