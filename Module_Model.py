@@ -133,7 +133,7 @@ class ModuleNet(nn.Module):
         self.classifier_times = []
         self.timing = False
         
-        self.function_modules = {}
+#        self.function_modules = {}
         self.function_modules_num_inputs = {}
         self.vocab = vocab
         for fn_str in vocab['program_token_to_idx']:
@@ -146,7 +146,7 @@ class ModuleNet(nn.Module):
                 mod = ConcatBlock(module_dim, with_residual=module_residual,
                                   with_batchnorm=module_batchnorm)
             self.add_module(fn_str, mod)
-            self.function_modules[fn_str] = mod
+#            self.function_modules[fn_str] = mod
         self.save_module_outputs = False
         
     def expand_answer_vocab(self, answer_to_idx, std=0.01, init_b=-50):
@@ -209,7 +209,7 @@ class ModuleNet(nn.Module):
         if used_fn_j:
             self.used_fns[i,j] = 1
         j += 1
-        module = self.function_modules[fn_str]
+        #module = self.function_modules[fn_str]
         if fn_str == 'scene':
             module_inputs = [feats[i:i+1]]
         else:
@@ -218,10 +218,7 @@ class ModuleNet(nn.Module):
             while len(module_inputs) < num_inputs:
                 cur_input, j = self.forward_modules_ints_helper(feats, program, i, j)
                 module_inputs.append(cur_input)
-        if torch.cuda.current_device() == 1:
-            print(module_inputs)
-            print(module)
-        module_output = module(*module_inputs)
+        module_output = ModuleNet._modules[fn_str](*module_inputs)
         return module_output, j
     
     def forward_modules_ints(self, feats, program):
