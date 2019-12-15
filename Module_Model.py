@@ -169,28 +169,39 @@ class ModuleNet(nn.Module):
     def forward_modules_ints_helper(self, feats, program, i, j):
         used_fn_j = True
         if j < program.size(1):
+            print('0')
             fn_idx = program.data[i,j]
             fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
         else:
+            print('1')
             used_fn_j = False
             fn_str = 'scene'
         if fn_str == '<NULL>':
+            print('2')
             used_fn_j = False
         elif fn_str == '<START>':
+            print('3')
             used_fn_j = False
             return self.forward_modules_ints_helper(feats, program, i, j+1)
         if used_fn_j:
+            print('4')
             self.used_fns[i,j] = 1
         j += 1
+        print('5')
         module = self.function_modules[fn_str]
+        print('6')
         if fn_str == 'scene':
             module_inputs = [feats[i:i+1]]
         else:
+            print('7')
             num_inputs = self.function_modules_num_inputs[fn_str]
             module_inputs = []
             while len(module_inputs) < num_inputs:
+                print('8')
                 cur_input, j = self.forward_modules_ints_helper(feats, program, i, j)
+                print('9')
                 module_inputs.append(cur_input)
+                print('10')
         module_output = module(*module_inputs)
         return module_output, j
     
@@ -198,13 +209,11 @@ class ModuleNet(nn.Module):
         N = feats.size(0)
         finale_module_outputs = []
         self.used_fns = torch.Tensor(program.size()).fill_(0)
-        print('0')
         for i in range(N):
             cur_output, _ = self.forward_modules_ints_helper(feats, program, i, 0)
+            print('not the func')
             finale_module_outputs.append(cur_output)
-        print('1')
         self.used_fns = self.used_fns.type_as(program.data).float()
-        print('2')
         finale_module_outputs = torch.cat(finale_module_outputs, 0)
         return finale_module_outputs
     
