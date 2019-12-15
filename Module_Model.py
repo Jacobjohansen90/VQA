@@ -9,15 +9,17 @@ Created on Wed Oct  2 12:27:55 2019
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from Layers import ResidualBlock, Flatten 
+from Layers import Flatten 
 import Program_funcs as func
 
-class ResidualBlock(nn.Module):
-    def __init__(self, in_dim, out_dim=None, with_residual=True,
-                 with_batchnorm=True):
+class ConcatBlock(nn.Module):
+    def __init__(self, in_dim, out_dim=None, with_residual=True, with_batchnorm=True):
         if out_dim is None:
             out_dim = in_dim
-        super(ResidualBlock, self).__init__()
+        super(ConcatBlock, self).__init__()
+        self.proj = nn.Conv2d(2*in_dim, in_dim, kernel_size=1, padding=0)
+#        self.res_block = ResidualBlock(dim, with_residual=with_residual,
+#                                       with_batchnorm=with_batchnorm)
         self.conv1 = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(out_dim, out_dim, kernel_size=3, padding=1)
         self.with_batchnorm = with_batchnorm
@@ -29,8 +31,14 @@ class ResidualBlock(nn.Module):
             self.proj = None
         else:
             self.proj = nn.Conv2d(in_dim, out_dim, kernel_size=1)
-            
-    def forward(self, x):
+        
+    def forward(self, x, y):
+        out = torch.cat([x, y], 1) #Cat along depth
+        out = F.relu(self.proj(out))
+        out = self.res_block(out)
+        return out
+
+    def ResidualBlock(self, x):
         if self.with_batchnorm:
             out = F.relu(self.bn1(self.conv1(x)))
         else:
@@ -40,25 +48,6 @@ class ResidualBlock(nn.Module):
             out = F.relu(res + out)
         else:
             out = F.relu(out)
-        return out
-        
-   
-class Flatten(nn.Module):
-    def forward(self, x):
-        return x.view(x.size(0), -1)
-
-
-class ConcatBlock(nn.Module):
-    def __init__(self, dim, with_residual=True, with_batchnorm=True):
-        super(ConcatBlock, self).__init__()
-        self.proj = nn.Conv2d(2*dim, dim, kernel_size=1, padding=0)
-        self.res_block = ResidualBlock(dim, with_residual=with_residual,
-                                       with_batchnorm=with_batchnorm)
-        
-    def forward(self, x, y):
-        out = torch.cat([x, y], 1) #Cat along depth
-        out = F.relu(self.proj(out))
-        out = self.res_block(out)
         return out
 
     def build_stem(feature_dim, module_dim, num_layers=2, with_batchnorm=True):
