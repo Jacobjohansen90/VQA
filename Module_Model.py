@@ -9,7 +9,7 @@ Created on Wed Oct  2 12:27:55 2019
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Layers import Flatten 
+from Layers import Flatten, ResidualBlock
 import Program_funcs as func
 
 class ConcatBlock(nn.Module):
@@ -17,6 +17,8 @@ class ConcatBlock(nn.Module):
         if out_dim is None:
             out_dim = in_dim
         super(ConcatBlock, self).__init__()
+        self.with_batchnorm = with_batchnorm
+        self.with_residual = with_residual
         self.proj = nn.Conv2d(2*in_dim, in_dim, kernel_size=1, padding=0)
 #        self.res_block = ResidualBlock(dim, with_residual=with_residual,
 #                                       with_batchnorm=with_batchnorm)
@@ -35,10 +37,10 @@ class ConcatBlock(nn.Module):
     def forward(self, x, y):
         out = torch.cat([x, y], 1) #Cat along depth
         out = F.relu(self.proj(out))
-        out = self.ResidualBlock(out)
+        out = self.ResBlock(out)
         return out
 
-    def ResidualBlock(self, x):
+    def ResBlock(self, x):
         if self.with_batchnorm:
             out = F.relu(self.bn1(self.conv1(x)))
         else:
@@ -138,7 +140,7 @@ class ModuleNet(nn.Module):
             num_inputs = func.get_num_inputs(fn_str)
             self.function_modules_num_inputs[fn_str] = num_inputs
             if fn_str == 'scene' or num_inputs == 1:
-                mod = ConcatBlock.ResidualBlock(module_dim, with_residual=module_residual,
+                mod = ResidualBlock(module_dim, with_residual=module_residual,
                                     with_batchnorm=module_batchnorm)
             elif num_inputs == 2:
                 mod = ConcatBlock(module_dim, with_residual=module_residual,
