@@ -30,9 +30,9 @@ class ConcatBlock(nn.Module):
             self.bn2 = nn.BatchNorm2d(out_dim)
         self.with_residual = with_residual
         if in_dim == out_dim or not with_residual:
-            self.proj = None
+            self.resproj = None
         else:
-            self.proj = nn.Conv2d(in_dim, out_dim, kernel_size=1)
+            self.resproj = nn.Conv2d(in_dim, out_dim, kernel_size=1)
         
     def forward(self, x, y):
         out = torch.cat([x, y], 1) #Cat along depth
@@ -45,7 +45,7 @@ class ConcatBlock(nn.Module):
             out = F.relu(self.bn1(self.conv1(x)))
         else:
             out = self.conv2(F.relu(self.conv1(x)))
-        res = x if self.proj is None else self.proj(x)
+        res = x if self.resproj is None else self.resproj(x)
         if self.with_residual:
             out = F.relu(res + out)
         else:
