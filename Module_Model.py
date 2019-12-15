@@ -218,7 +218,7 @@ class ModuleNet(nn.Module):
             while len(module_inputs) < num_inputs:
                 cur_input, j = self.forward_modules_ints_helper(feats, program, i, j)
                 module_inputs.append(cur_input)
-        module_output = ModuleNet._modules[fn_str](*module_inputs)
+        module_output = self._modules[fn_str](*module_inputs)
         return module_output, j
     
     def forward_modules_ints(self, feats, program):
