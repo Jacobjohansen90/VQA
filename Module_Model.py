@@ -218,6 +218,9 @@ class ModuleNet(nn.Module):
             while len(module_inputs) < num_inputs:
                 cur_input, j = self.forward_modules_ints_helper(feats, program, i, j)
                 module_inputs.append(cur_input)
+        if torch.cuda.current_device() == 1:
+            print(module_inputs)
+            print(module)
         module_output = module(*module_inputs)
         return module_output, j
     
