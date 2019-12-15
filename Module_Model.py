@@ -191,7 +191,7 @@ class ModuleNet(nn.Module):
             while len(module_inputs) < num_inputs:
                 cur_input, j = self.forward_modules_ints_helper(feats, program, i, j)
                 module_inputs.append(cur_input)
-        print('before module')
+        print(torch.cuda.current_device(), 'before module')
         module_output = module(*module_inputs)
         print('after module')
         return module_output, j
@@ -202,7 +202,6 @@ class ModuleNet(nn.Module):
         self.used_fns = torch.Tensor(program.size()).fill_(0)
         for i in range(N):
             cur_output, _ = self.forward_modules_ints_helper(feats, program, i, 0)
-            print('not the func')
             finale_module_outputs.append(cur_output)
         self.used_fns = self.used_fns.type_as(program.data).float()
         finale_module_outputs = torch.cat(finale_module_outputs, 0)
