@@ -206,11 +206,11 @@ class ModuleNet(nn.Module):
         return finale_module_outputs
     
     def forward(self, x, program):
+        print('made it to here')
         N = x.size(0)
         assert N == len(program)
         
         feats = self.stem(x)
-               
         if type(program) is list or type(program) is tuple:
             final_module_outputs = self.forward_modules_json(feats, program)
         elif type(program) is torch.Tensor and program.dim() == 2:
