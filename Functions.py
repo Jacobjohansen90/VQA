@@ -58,8 +58,7 @@ def load_program_generator(path):
     kwargs = checkpoint['program_generator_kwargs']
     state = checkpoint['program_generator_state']
     model = Seq2Seq(**kwargs)
-    model.load_state_dict(state)
-    
+    model.load_state_dict(state)  
     return model, kwargs
           
 def get_program_generator(vocab, args, multi_gpu=True):

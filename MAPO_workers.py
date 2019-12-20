@@ -14,7 +14,7 @@ import os
 #%% Options
 
 
-def MAPO_CPU(args, pg, ee, MAPO_que, skip_que, vocab, number):
+def MAPO_CPU(args, pg, ee, sample_que, vocab, number):
     if args.info:
         print('MAPO process %s started' % str(number))
     
@@ -22,7 +22,7 @@ def MAPO_CPU(args, pg, ee, MAPO_que, skip_que, vocab, number):
     pg.type(dtype)
     ee.type(dtype)
     while True:
-        sample = MAPO_que.get()
+        sample = sample_que.get()
         question, _, feats, answer, _, _, i = sample
         q_name = '-'.join(str(e) for e in question.numpy() if e != 0)
         question = question.unsqueeze(0)
