@@ -249,7 +249,7 @@ class MyClevrDataLoader(DataLoader):
         np.random.shuffle(self.sample_list)
         
 class ClevrDataset(Dataset):
-    def __init__(self, question_h5_path, feature_h5, vocab, mode='prefix', 
+    def __init__(self, question_h5_path, feature_h5_path, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list=None,
                  image_h5=None, max_samples=None, hr_path=None,
                  image_idx_start_from=None, question_categories=28):
