@@ -24,7 +24,7 @@ from MAPO_workers import MAPO_CPU
 #TODO: image idx start from / mask does not work in dataloader
 #%% Setup Params
 if __name__ == '__main__':
-    mp.set_start_method('spawn')
+    #mp.set_start_method('spawn')
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--multi_GPU', default=True) #Use all avalaible GPUs?
