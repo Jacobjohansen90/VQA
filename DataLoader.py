@@ -268,6 +268,7 @@ class ClevrDataset(Dataset):
         self.eval_index = 0
         self.eval = False
         self.hr_path = hr_path
+        self.question_h5_path = question_h5_path
         self.question_h5 = h5py.File(question_h5_path, 'r')
 
         mask = None
@@ -320,6 +321,7 @@ class ClevrDataset(Dataset):
           
     def __getitem__(self, i):
         mask = None
+        self.question_h5 = h5py.File(self.question_h5_path, 'r')
         self.all_questions = dataset_to_tensor(self.question_h5['questions'], mask)
         self.all_image_idxs = dataset_to_tensor(self.question_h5['image_idxs'], mask)
         self.all_programs = None
