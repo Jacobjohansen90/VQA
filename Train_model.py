@@ -8,7 +8,7 @@ Created on Thu Sep 26 15:27:24 2019
 import Functions as func
 import torch
 import argparse
-from DataLoader import ClevrDataLoader, MAPOClevrDataLoader
+from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
 
