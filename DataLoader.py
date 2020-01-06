@@ -5,6 +5,8 @@ Created on Thu Sep 26 15:52:45 2019
 
 @author: jacob
 """
+import torch.multiprocessing as mp
+mp.set_start_method('spawn')
 import numpy as np
 import h5py
 import torch
