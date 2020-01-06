@@ -414,6 +414,8 @@ class ClevrDataLoader(DataLoader):
         
         if path_to_index is not None:
             index_list = json.load(open(path_to_index))
+        else:
+            index_list = None
         
         max_samples = kwargs.pop('max_samples', None)
         question_h5_path = kwargs.pop('question_h5')
