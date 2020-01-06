@@ -10,7 +10,7 @@ import json
 import torch
 from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
-from DataLoader import ClevrDataset
+from DataLoader import dataset_to_tensor
 import h5py
 import os
 import shutil
@@ -236,118 +236,38 @@ def checkpoint_func(args, model, program_generator, execution_engine,
     return stats, break_counter, best_pg_state, best_ee_state
 
 #MAPO Functions  
-def MAPO_loader(args, hr_list, MAPO_que, pg_que, ee_que, skip_que, eval_que, vocab):
-    loader_kwargs = {
-    'question_h5': args.train_questions_h5,
-    'feature_h5': args.train_features_h5,
-    'vocab':vocab,
-    'batch_size':args.batch_size,
-    'shuffle': args.shuffle_train_data,
-    'max_samples': args.num_train_samples,
-    'num_workers': args.loader_num_workers,
-    'balanced_n':args.PG_num_of_each,
-    'oversample':args.oversample,
-    'path_to_index': args.path_to_index_file,
-    'model': 'MAPO'}
-    if 'question_h5' not in loader_kwargs:
-            raise ValueError('Must give question_q5')
-    if 'feature_h5'  not in loader_kwargs:
-        raise ValueError('Must give feature_h5')
-    if 'vocab' not in loader_kwargs:
-        raise ValueError('Must give vocab')
-        
-    feature_h5_path = loader_kwargs.pop('feature_h5')
-    feature_h5 = h5py.File(feature_h5_path, 'r')
-        
-    image_h5 = None
-    if 'image_h5' in loader_kwargs:
-        image_h5_path = loader_kwargs.pop('image_h5')
-        image_h5 = h5py.File(image_h5_path, 'r')
-    
-    vocab = loader_kwargs.pop('vocab')
-    mode = loader_kwargs.pop('mode', 'prefix')
-    
-    max_samples = loader_kwargs.pop('max_samples', None)
-    question_h5_path = loader_kwargs.pop('question_h5')
-    image_idx_start_from = loader_kwargs.pop('image_idx_start_from', None)
-    
-    question_h5 = h5py.File(question_h5_path, 'r')
-    dataset = ClevrDataset(False, False, question_h5, feature_h5, vocab, mode,
-                           image_h5=image_h5, max_samples=max_samples,
-                           image_idx_start_from=image_idx_start_from)
+def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
+    if args.train_questions_h5 + '_MAPO' not in os.listdir():
+        print('Copying questions for MAPO loader')
+        shutil.copyfile(args.train_questions_h5, args.train_questions_h5 + '_MAPO') 
 
-    non_hr_list = list(range(len(dataset)))
-        
-    for i in non_hr_list:
+    q_path = args.train_questions_h5+'_MAPO'    
+    question_h5 = h5py.File(q_path, 'r')
+    all_questions = dataset_to_tensor(question_h5, None)
+           
+    for i in sample_list:
         if i in hr_list:
-            non_hr_list.remove(i)
-
-    i = 0; j = 0; k = 0; l = 0
-    done = False
-    q = torch.zeros(args.batch_size, 46).long()
-    f = torch.zeros(args.batch_size, 1024, 14, 14)
-    a = torch.zeros(args.batch_size, 1).long()
+            sample_list.remove(i)
+            
+    i = 0
     while True:
-        if eval_que.qsize() < 30:
-            for i in range(args.batch_size):
-                sample = dataset[l]
-                q[i] = sample[0]
-                f[i] = sample[2]
-                a[i] = sample[3]
-                l += 1
-                if l == len(dataset):
-                    done = True
-                    l = 0
-                    counter = i+1
-                    break
-            if not done:
-                eval_que.put((q,f,a,done))
-            elif done:
-                eval_que.put((q[:counter], f[:counter], a[:counter], done))
-                done = False
-
-        if MAPO_que.qsize() < args.MAPO_qsize:
-            index = non_hr_list[i]
-            i+= 1
-            MAPO_que.put(dataset[index])
-            if i % len(non_hr_list)== 0:
+        if sample_que.qsize() < args.MAPO_qsize:
+            sample_que.put((all_questions[sample_list[i]]))
+            i += 1
+            if i % (len(sample_list)-1) == 0:
                 i = 0
-        if ee_que.qsize() < args.MAPO_qsize:
-            index = non_hr_list[j]
-            j += 1
-            ee_que.put(dataset[index])
-            if j % len(non_hr_list) == 0:
-                j = 0
-        if pg_que.qsize() < args.MAPO_qsize:
-            index = hr_list[k]
-            k += 1
-            pg_que.put(dataset[index])
-            if k % len(hr_list) == 0:
-                k = 0
-
-        for _ in range(skip_que.qsize()):
-            index = skip_que.get()
-            #We need these additional checks if either list is small, as a 
-            #sample might be in the que more than once, and thus returned
-            #here in the skip que more than once. 
-            if index < 0:
-                if abs(index) in hr_list:
-                    hr_list.remove(abs(index))
-                if abs(index) not in non_hr_list:
-                    non_hr_list.append(abs(index))
-            else:
-                if index not in hr_list:
-                    hr_list.append(index)
-                if index in non_hr_list:
-                    non_hr_list.remove(index)
-                
+                if change_que.qsize() != 0:
+                    for _ in range(change_que.qsize()):
+                        indexs, programs, change = change_que.get()
+                        questions = all_questions[indexs]
+                        sample_list = update_hr_paths(args, sample_list, indexs, questions, programs, change)
             
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
     loader.eval_mode()
     done = False
     while not done:
-        q, _, feat, ans, _, _, j, done = loader.batch()
+        q, _, feat, ans, _, _, j, done, _, _ = loader.batch()
         program_pred = pg.reinforce_sample(q.cuda())
         scores = ee(feat.cuda(), program_pred)
         _, preds = scores.data.cpu().max(1)
@@ -363,22 +283,22 @@ def make_HR_paths(args, pg, ee, loader):
                 torch.save(program_pred[i], path+p_name)
     return hr_list
 
-def update_hr_paths(args, program_pred, questions, index, skip_que, remove):
+def update_hr_paths(args, sample_list, indexs, questions, program, change):
     hr_folder = args.high_reward_path
-    bf_folder = args.bf_load_path
+    bf_folder = args.bf_load_path  
     for i in range(questions.size(0)):
         q_name = '-'.join(str(int(e)) for e in questions[i] if e != 0)
-        p_name = '-'.join(str(int(e)) for e in program_pred[i] if e != 0)
-        if remove:
+        p_name = '-'.join(str(int(e)) for e in program[i] if e != 0)
+        if change == 'negative':
             os.remove(hr_folder+q_name+'/'+p_name+'.pt')
-            skip_que.put(-index[i])
-
+            sample_list.append(indexs[i])
         else:
-            skip_que.put(index[i])
             if not os.path.exists(hr_folder+q_name):
                 os.makedirs(hr_folder+q_name)
-                torch.save(program_pred[i], hr_folder+q_name+'/'+p_name+'.pt')
-                os.remove(bf_folder+q_name)
+            torch.save(program[i], hr_folder+q_name+'/'+p_name+'.pt')
+            os.remove(bf_folder+q_name)
+            sample_list.remove(indexs[i])
+    return sample_list
 
 def load_hr_program(args, question):
     q_name = '-'.join(str(int(e)) for e in question if e != 0)

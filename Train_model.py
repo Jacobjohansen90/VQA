@@ -21,6 +21,7 @@ from MAPO_workers import MAPO_CPU
 #TODO: Load stats properbly
 #TODO: Create oversample.json during preprocessing
 #TODO: Add dataparallel support for PG and MAPO
+#TODO: image idx start from / mask does not work in dataloader
 #%% Setup Params
 if __name__ == '__main__':
     mp.set_start_method('spawn')
@@ -242,12 +243,16 @@ if __name__ == '__main__':
             print('Making HR paths')
             print('Using ,',torch.cuda.device_count(),' GPUs')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
-            p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, sample_que, vocab))
+            p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
+                                                          sample_que, vocab, 
+                                                          train_loader.dataset.sample_list))
             p.start()
             processes.append(p)            
             if args.info:
                 print('Clevr dataloader spawned')
-        
+            
+            #Keep track of novel path tries
+            novel_counter = torch.zeros(len(train_loader)*args.batch_size)
         stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
                  'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}
@@ -265,7 +270,7 @@ if __name__ == '__main__':
                 while True:
                     for batch in train_loader:
                         t += 1
-                        questions, _, feats, answers, programs, _, _, _, _ = batch
+                        questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions.cuda(), programs.cuda()).mean()
                         #sum is needed for multi GPU, has no impact if 1 GPU
@@ -290,7 +295,7 @@ if __name__ == '__main__':
                 while True:
                     for batch in train_loader:
                         t += 1
-                        questions, _, feats, answers, _, _, _, _, _ = batch
+                        questions, _, feats, answers, _, _, _, _, _, _ = batch
                         if args.multi_GPU:
                             programs_pred = program_generator.module.reinforce_sample(questions.cuda())
                         else:
@@ -319,50 +324,70 @@ if __name__ == '__main__':
                 while True:
                     for batch in train_loader:
                         t += 1
-                        questions, _, feats, answers, _, _, indexs, _, programs, I = next(iter(train_loader))
+                        questions, _, feats, answers, _, _, indexs, _, programs, I = batch
+                        #Test MAPO suggestions
+                        func.set_mode('eval', execution_engine)
+                        for i in len(programs):
+                            if programs[i] is not list:
+                                continue
+                            else:
+                                scores = execution_engine(feats[i].expand(len(programs[i])).cuda(),
+                                                          programs.cuda())
+                                _, preds = scores.data.cpu.max(1)
+                                I_test = (preds == answers[i].expand(len(programs[i])))
+                                if I_test.sum() > 0:
+                                    change_index = indexs[i]
+                                    change_programs = programs[i][I_test]
+                                    change_que.put((change_index, change_programs, 'positive'))
+                                    I[i] = True
+                                    programs[i] = programs[i][I_test][0] 
+                                    #0 is most likely program sequence ,-1 is least
+                        func.set_mode('train', execution_engine)
+                        
+                        #Force programs if no high reward path
+                        if args.multi_GPU:
+                            programs[~I] = program_generator.module.reinforce_sample(questions[~I].cuda())
+                        else:
+                            programs[~I] = program_generator.reinforce_sample(questions[~I].cuda())
+                        
+                        scores = execution_engine(feats.cuda(), programs.cuda())
+                        _, preds = scores.data.cpu().max(1)
+
+                        #Train EE with positive and negative examples
+                        ee_optimizer.zero_grad()
+                        loss = loss_fn(scores, answers.cuda())
+                        loss.backward()
+                        ee_loss.append(loss.item())
+                        ee_optimizer.step()
+                        #Check that all examples are still the same as originally (posistive and negative)
+                        I_ = (preds==answers)
+                        if I_ != I:
+                            #These indexes have become negative
+                            if ((I != I_) == I).sum() != 0:
+                                change_indexs = indexs[(I != I_) == I] 
+                                change_programs = programs[(I != I_) == I]
+                                change_que.put((change_indexs, change_programs, 'negative'))
+                                I[(I != I_) == I] = False
+
+                            if (I[I_ == True] != True).sum() != 0:
+                                #These indexes have become positive
+                                change_indexs = indexs[(I_ == True)][I[I_ == True] != True]
+                                change_programs = programs[(I_ == True)][I[I_ == True] != True]
+                                change_que.put((change_indexs, change_programs, 'positive'))
+                                I[I_ == True] = True
+
                         #PG Train where applicable
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                         loss.backward()
                         pg_loss.append(loss.item())
                         pg_optimizer.step()
-                        #EE train with positive examples
-                        scores = execution_engine(feats[I].cuda(), programs[I].cuda())
-                        _, preds = scores.data.cpu().max(1)
-                        ee_optimizer.zero_grad()
-                        loss = loss_fn(scores, answers[I].cuda())
-                        loss.backward()
-                        ee_loss.append(loss.item())
-                        ee_optimizer.step()
-                        #Check that all examples are still positive
-                        I_ = (preds==answers)
-                        if I_.sum() != I.sum():
-                            change_indexs = indexs[I][~I_] #Q's we evaluate, and then the ones not correct
-                            change_que.put((change_indexs, 'negative'))
                         
-                        #Train EE with negative examples
-                        if args.multi_GPU:
-                            programs_pred = program_generator.module.reinforce_sample(questions[~I].cuda())
-                        else:
-                            programs_pred = program_generator.reinforce_novel_sample(questions[~I].cuda())
-                            scores = execution_engine(feats[~I].cuda(), programs_pred)
-                            _, preds = scores.data.cpu().max(1)
-                            I_ = (preds == answers)
-                            if I_.sum() != 0:
-                                change_indexs = indexs[~I][I_]
-                                change_que.put((change_indexs, 'positive'))
-                            ee_optimizer.zero_grad()
-                            loss = loss_fn(scores, answers.cuda())
-                            loss.backward()
-                            ee_loss.append(loss.item())
-                            ee_optimizer.step()
-                            
+                                                                                  
                         if t % args.checkpoint_every == 0:
-                            #We need to make sure only one dataloader is laoding
-                            #from the h5py files. Else we will get an error
                             stats, break_counter, best_pg_state, best_ee_state =\
                             func.checkpoint_func(args, model_, program_generator, execution_engine, 
-                                                 eval_que, val_loader, t, epoch, stats,
+                                                 train_loader, val_loader, t, epoch, stats,
                                                  model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                                  vocab, break_counter, best_pg_state, best_ee_state,
                                                  checkpoint_path)

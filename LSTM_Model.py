@@ -110,7 +110,7 @@ class Seq2Seq(nn.Module):
         output_logprobs = self.decoder_linear(rnn_output_2d).view(N, T_out, V_out)
         return output_logprobs, ht, ct
     
-    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, argmax=True):
+    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, argmax=False):
         N, T = x.size(0), self.max_length
         assert N == 1       
         encoded = self.encoder(x)
@@ -256,7 +256,7 @@ class Seq2Seq(nn.Module):
         loss = self.compute_loss(output_logprobs, y)
         return loss
     
-    def reinforce_backward(self, reward, output_mask=None):
+    def reinforce_backward(self, reward, alpha, output_mask=None):
         assert self.multinomial_outputs is not None, 'Must call reinforce sample first'
         
         def gen_hook(mask):
@@ -272,7 +272,7 @@ class Seq2Seq(nn.Module):
         for i in range(len(self.multinomial_outputs)):
             sampled_output = self.multinomial_outputs[i]
             m = self.multinomial_m[i]
-            loss = -(m.log_prob(sampled_output)*reward).sum()
+            loss = -(m.log_prob(sampled_output)*reward).sum()*alpha
             loss.backward(retain_graph=True)
             
     def reinforce_backward_MAPO(self, multinomial_outputs, multinomial_probs,

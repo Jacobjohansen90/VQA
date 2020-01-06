@@ -252,7 +252,7 @@ class MyClevrDataLoader(DataLoader):
 class ClevrDataset(Dataset):
     def __init__(self, question_h5, feature_h5, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list=None,
-                 image_h5=None, max_samples=None, hr_path=None
+                 image_h5=None, max_samples=None, hr_path=None,
                  image_idx_start_from=None, question_categories=28):
         mode_choices = ['prefix', 'postfix']
         if mode not in mode_choices:
@@ -359,11 +359,8 @@ class ClevrDataset(Dataset):
                 program_json = P.prefix_to_list(program_json_seq)
             elif self.mode == 'postfix':
                 program_json = P.postfix_to_list(program_json_seq)
-        if self.MAPO:
-            program, I = self.get_program(question)
-            return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
-        else:
-            return (question, image, feats, answer, program_seq, program_json, index, self.done, None, None)
+        program, I = self.get_program(question)
+        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
     
     def __len__(self):
         return self.sample_list.size(0)
@@ -375,9 +372,20 @@ class ClevrDataset(Dataset):
         
     def get_program(self, question):
         q_name = '-'.join(str(int(e)) for e in question if e != 0)
-        if len(os.listdir(self.hr_path + q_name)) != 0:  
-            p_name = os.listdir(self.hr_path + q_name)[0]
-            return torch.load(self.hr_path + q_name + '/' + p_name), True
+        if os.path.exists(self.hr_path+q_name):
+            programs_list = os.listdir(self.hr_path+q_name)
+            if programs_list[0][-4:] == 'MAPO':
+                length = len(programs_list)
+                programs = torch.zeros(length, 30)
+                for i in range(length):  
+                    p_name = os.listdir(self.hr_path + q_name)[i]
+                    program = torch.load(self.hr_path + q_name + '/' + p_name)
+                    programs[i] = program
+                return programs, False
+            else:
+                p_name = os.listdir(self.hr_path + q_name)[0]
+                program = torch.load(self.hr_path + q_name + '/' + p_name)
+                return program, True
         else:
             return None, False
     
@@ -411,7 +419,7 @@ class ClevrDataLoader(DataLoader):
             self.dataset = ClevrDataset(question_h5, self.feature_h5, vocab, mode,
                                         balanced_n=balanced_n, oversample=oversample,
                                         index_list=path_to_index, image_h5=self.image_h5,
-                                        max_samples=max_samples, hr_path=hr_path
+                                        max_samples=max_samples, hr_path=hr_path,
                                         image_idx_start_from=image_idx_start_from)
         kwargs['collate_fn'] = self.clevr_collate
         super(ClevrDataLoader, self).__init__(self.dataset, **kwargs)
