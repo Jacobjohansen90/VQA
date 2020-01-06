@@ -268,16 +268,11 @@ class ClevrDataset(Dataset):
         self.eval_index = 0
         self.eval = False
         self.hr_path = hr_path
+        self.question_h5 = question_h5
 
         mask = None
         
-        self.all_questions = dataset_to_tensor(question_h5['questions'], mask)
-        self.all_image_idxs = dataset_to_tensor(question_h5['image_idxs'], mask)
-        self.all_programs = None
-        if 'programs' in question_h5:
-            self.all_programs = dataset_to_tensor(question_h5['programs'], mask)
-        self.all_answers = dataset_to_tensor(question_h5['answers'], mask)
-        
+       
         if self.balanced_n is not None:
             if self.index_list is None:
                 raise ValueError('Must provide index list')
@@ -318,11 +313,19 @@ class ClevrDataset(Dataset):
             else:
                 self.sample_list = list(range(len(self.all_questions)))
                 
-        if image_idx_start_from is not None:
-            all_image_idxs = np.asarray(question_h5['image_idxs'])
-            mask = all_image_idxs >= image_idx_start_from
+#        if image_idx_start_from is not None:
+#            all_image_idxs = np.asarray(question_h5['image_idxs'])
+#            mask = all_image_idxs >= image_idx_start_from
           
     def __getitem__(self, i):
+        mask = None
+        self.all_questions = dataset_to_tensor(self.question_h5['questions'], mask)
+        self.all_image_idxs = dataset_to_tensor(self.question_h5['image_idxs'], mask)
+        self.all_programs = None
+        if 'programs' in self.question_h5:
+            self.all_programs = dataset_to_tensor(self.question_h5['programs'], mask)
+        self.all_answers = dataset_to_tensor(self.question_h5['answers'], mask)        
+        
         if self.eval:
             index = self.eval_index
             self.eval_index += 1
