@@ -363,7 +363,7 @@ class ClevrDataset(Dataset):
         return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
     
     def __len__(self):
-        return self.sample_list.size(0)
+        return len(self.sample_list)
     
     def eval_mode(self):
         self.eval = True
