@@ -271,7 +271,8 @@ class ClevrDataset(Dataset):
         self.question_h5 = question_h5
 
         mask = None
-        
+        self.all_questions = dataset_to_tensor(self.question_h5['questions'], mask)
+
        
         if self.balanced_n is not None:
             if self.index_list is None:
