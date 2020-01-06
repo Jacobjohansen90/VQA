@@ -249,7 +249,7 @@ class MyClevrDataLoader(DataLoader):
         np.random.shuffle(self.sample_list)
         
 class ClevrDataset(Dataset):
-    def __init__(self, question_h5, feature_h5, vocab, mode='prefix', 
+    def __init__(self, question_h5_path, feature_h5, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list=None,
                  image_h5=None, max_samples=None, hr_path=None,
                  image_idx_start_from=None, question_categories=28):
@@ -268,7 +268,7 @@ class ClevrDataset(Dataset):
         self.eval_index = 0
         self.eval = False
         self.hr_path = hr_path
-        self.question_h5 = question_h5
+        self.question_h5 = h5py.File(question_h5_path, 'r')
 
         mask = None
         self.all_questions = dataset_to_tensor(self.question_h5['questions'], mask)
@@ -423,12 +423,11 @@ class ClevrDataLoader(DataLoader):
         max_samples = kwargs.pop('max_samples', None)
         question_h5_path = kwargs.pop('question_h5')
         image_idx_start_from = kwargs.pop('image_idx_start_from', None)
-        with h5py.File(question_h5_path, 'r') as question_h5:
-            self.dataset = ClevrDataset(question_h5, self.feature_h5, vocab, mode,
-                                        balanced_n=balanced_n, oversample=oversample,
-                                        index_list=index_list, image_h5=self.image_h5,
-                                        max_samples=max_samples, hr_path=hr_path,
-                                        image_idx_start_from=image_idx_start_from)
+        self.dataset = ClevrDataset(question_h5_path, self.feature_h5, vocab, mode,
+                                    balanced_n=balanced_n, oversample=oversample,
+                                    index_list=index_list, image_h5=self.image_h5,
+                                    max_samples=max_samples, hr_path=hr_path,
+                                    image_idx_start_from=image_idx_start_from)
         kwargs['collate_fn'] = self.clevr_collate
         super(ClevrDataLoader, self).__init__(self.dataset, **kwargs)
     
