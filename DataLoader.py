@@ -258,7 +258,7 @@ class ClevrDataset(Dataset):
             raise ValueError('Invalid mode "%s"' % mode)
         self.image_h5 = image_h5
         self.vocab = vocab
-        self.feature_h5 = feature_h5
+        self.feature_h5_path = feature_h5_path
         self.mode = mode
         self.max_samples = max_samples
         self.balanced_n = balanced_n
@@ -321,51 +321,52 @@ class ClevrDataset(Dataset):
           
     def __getitem__(self, i):
         mask = None
-        self.question_h5 = h5py.File(self.question_h5_path, 'r')
-        self.all_questions = dataset_to_tensor(self.question_h5['questions'], mask)
-        self.all_image_idxs = dataset_to_tensor(self.question_h5['image_idxs'], mask)
-        self.all_programs = None
-        if 'programs' in self.question_h5:
-            self.all_programs = dataset_to_tensor(self.question_h5['programs'], mask)
-        self.all_answers = dataset_to_tensor(self.question_h5['answers'], mask)        
-        
-        if self.eval:
-            index = self.eval_index
-            self.eval_index += 1
-            if self.eval_index == len(self.all_questions):
-                self.done = True
-        else:
-            index = self.sample_list[i]        
-        question = self.all_questions[index]
-        image_idx = self.all_image_idxs[index]
-        answer = self.all_answers[index]
-        program_seq = None
-        if self.all_programs is not None:
-            program_seq = self.all_programs[index]
+        feature_h5 = h5py.File(self.feature_h5_path, 'r')
+        with h5py.File(self.question_h5_path, 'r') as all_qs:
+            all_questions = dataset_to_tensor(all_qs['questions'], mask)
+            all_image_idxs = dataset_to_tensor(all_qs['image_idxs'], mask)
+            self.all_programs = None
+            if 'programs' in self.question_h5:
+                all_programs = dataset_to_tensor(all_qs['programs'], mask)
+            all_answers = dataset_to_tensor(all_qs['answers'], mask)        
             
-        image = None
-        if self.image_h5 is not None:
-            image = self.image_h5['images'][image_idx]
-            image = torch.FloatTensor(np.asarray(image, dtype=np.float32))
-        
-        feats = self.feature_h5['features'][image_idx]
-        feats = torch.FloatTensor(np.asarray(feats, dtype=np.float32))
-        
-        program_json = None
-        if program_seq is not None:
-            program_json_seq = []
-            for fn_idx in program_seq:
-                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
-                if fn_str == '<START>' or fn_str == '<END>':
-                    continue
-                fn = P.str_to_function(fn_str)
-                program_json_seq.append(fn)
-            if self.mode == 'prefix':
-                program_json = P.prefix_to_list(program_json_seq)
-            elif self.mode == 'postfix':
-                program_json = P.postfix_to_list(program_json_seq)
-        program, I = self.get_program(question)
-        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
+            if self.eval:
+                index = self.eval_index
+                self.eval_index += 1
+                if self.eval_index == len(all_questions):
+                    self.done = True
+            else:
+                index = self.sample_list[i]        
+            question = all_questions[index]
+            image_idx = all_image_idxs[index]
+            answer = all_answers[index]
+            program_seq = None
+            if all_programs is not None:
+                program_seq = self.all_programs[index]
+                
+            image = None
+            if self.image_h5 is not None:
+                image = self.image_h5['images'][image_idx]
+                image = torch.FloatTensor(np.asarray(image, dtype=np.float32))
+            
+            feats = feature_h5['features'][image_idx]
+            feats = torch.FloatTensor(np.asarray(feats, dtype=np.float32))
+            
+            program_json = None
+            if program_seq is not None:
+                program_json_seq = []
+                for fn_idx in program_seq:
+                    fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
+                    if fn_str == '<START>' or fn_str == '<END>':
+                        continue
+                    fn = P.str_to_function(fn_str)
+                    program_json_seq.append(fn)
+                if self.mode == 'prefix':
+                    program_json = P.prefix_to_list(program_json_seq)
+                elif self.mode == 'postfix':
+                    program_json = P.postfix_to_list(program_json_seq)
+            program, I = self.get_program(question)
+            return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
     
     def __len__(self):
         return len(self.sample_list)
@@ -406,7 +407,6 @@ class ClevrDataLoader(DataLoader):
         oversample = kwargs.pop('oversample', None)
         balanced_n = kwargs.pop('balanced_n', None)
         feature_h5_path = kwargs.pop('feature_h5')
-        self.feature_h5 = h5py.File(feature_h5_path, 'r')
         hr_path = kwargs.pop('high_reward_path', None)
         
         self.image_h5 = None
@@ -425,7 +425,7 @@ class ClevrDataLoader(DataLoader):
         max_samples = kwargs.pop('max_samples', None)
         question_h5_path = kwargs.pop('question_h5')
         image_idx_start_from = kwargs.pop('image_idx_start_from', None)
-        self.dataset = ClevrDataset(question_h5_path, self.feature_h5, vocab, mode,
+        self.dataset = ClevrDataset(question_h5_path, feature_h5_path, vocab, mode,
                                     balanced_n=balanced_n, oversample=oversample,
                                     index_list=index_list, image_h5=self.image_h5,
                                     max_samples=max_samples, hr_path=hr_path,
