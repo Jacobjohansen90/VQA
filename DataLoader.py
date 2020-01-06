@@ -398,8 +398,8 @@ class ClevrDataLoader(DataLoader):
         if 'vocab' not in kwargs:
             raise ValueError('Must give vocab')
         path_to_index = kwargs.pop('path_to_index', None)
-        oversample = kwargs.pop('oversample')
-        balanced_n = kwargs.pop('balanced_n')
+        oversample = kwargs.pop('oversample', None)
+        balanced_n = kwargs.pop('balanced_n', None)
         feature_h5_path = kwargs.pop('feature_h5')
         self.feature_h5 = h5py.File(feature_h5_path, 'r')
         hr_path = kwargs.pop('high_reward_path', None)
