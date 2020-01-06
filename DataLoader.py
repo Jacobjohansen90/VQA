@@ -286,7 +286,7 @@ class ClevrDataset(Dataset):
                 self.sample_list = []
                 for i in range(len(self.index_list)-4):
                     indexs = random.sample(self.index_list[str(i+4)], self.balanced_n)
-                    self.index_list.append(indexs)
+                    self.sample_list.append(indexs)
                 for _ in range(self.max_samples - len(self.sample_list)):
                     while True:
                         i = random.randint(0,len(self.all_questions)-1)
