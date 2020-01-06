@@ -91,7 +91,7 @@ if __name__ == '__main__':
     
     #Dataloader params
     parser.add_argument('--feature_dim', default='1024,14,14')
-    parser.add_argument('--loader_num_workers', type=int, default=4)
+    parser.add_argument('--loader_num_workers', type=int, default=1)
     
     # Program generator (LSTM Model) options
     parser.add_argument('--rnn_wordvec_dim', default=300, type=int)
