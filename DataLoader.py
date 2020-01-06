@@ -285,7 +285,7 @@ class ClevrDataset(Dataset):
             else:
                 self.sample_list = []
                 for i in range(len(self.index_list)-4):
-                    indexs = random.sample(self.sample_list[str(i+4)], self.balanced_n)
+                    indexs = random.sample(self.index_list[str(i+4)], self.balanced_n)
                     self.index_list.append(indexs)
                 for _ in range(self.max_samples - len(self.sample_list)):
                     while True:
@@ -412,13 +412,16 @@ class ClevrDataLoader(DataLoader):
         vocab = kwargs.pop('vocab')
         mode = kwargs.pop('mode', 'prefix')
         
+        if path_to_index is not None:
+            index_list = json.load(open(path_to_index))
+        
         max_samples = kwargs.pop('max_samples', None)
         question_h5_path = kwargs.pop('question_h5')
         image_idx_start_from = kwargs.pop('image_idx_start_from', None)
         with h5py.File(question_h5_path, 'r') as question_h5:
             self.dataset = ClevrDataset(question_h5, self.feature_h5, vocab, mode,
                                         balanced_n=balanced_n, oversample=oversample,
-                                        index_list=path_to_index, image_h5=self.image_h5,
+                                        index_list=index_list, image_h5=self.image_h5,
                                         max_samples=max_samples, hr_path=hr_path,
                                         image_idx_start_from=image_idx_start_from)
         kwargs['collate_fn'] = self.clevr_collate
