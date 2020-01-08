@@ -13,7 +13,7 @@ from Preprocess_funcs import tokenize, build_vocab, encode, program_to_str
 ##Args
 
 path = "../Data/questions/"
-questions = "val" #train / val / test / all
+questions = "all" #train / val / test / all
 
 input_vocab = '../Data/vocab/vocab.json' #Path to json vocab we want to expand (empty '' = create new)
 output_vocab = '../Data/vocab/vocab.json' #Dumb path for new expanded vocab

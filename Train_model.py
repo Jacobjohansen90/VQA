@@ -12,19 +12,14 @@ from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
 
-#Fix MAPO Workers
-#Fix Dataloader for MAPO workers including HR path generator
-#Fix HR check in main
 
 
-#TODO: Add smarter novel path method since program is predicted in reverse
 #TODO: Load stats properbly
 #TODO: Create oversample.json during preprocessing
-#TODO: Add dataparallel support for PG and MAPO
 #TODO: image idx start from / mask does not work in dataloader
 #%% Setup Params
 if __name__ == '__main__':
-#    mp.set_start_method('spawn')
+    mp.set_start_method('spawn')
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--multi_GPU', default=True) #Use all avalaible GPUs?

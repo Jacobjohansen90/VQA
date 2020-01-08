@@ -7,17 +7,16 @@ Created on Mon Sep 30 11:31:25 2019
 """
 
 import os
-import h5py
 import numpy as np
 from scipy.misc import imread, imresize
-
+import torch
 
 from Preprocess_funcs import build_model, run_batch
 
 ##Args
 
 feature_model = 'resnet101'
-split = 'val'
+split = 'all'
 max_images = None
 model = 'resnet101'
 model_stage = 3
@@ -30,8 +29,8 @@ if split == 'all':
 else:
     splits = [split]
 for split in splits:
-    output_h5_file = '../Data/h5py/img_features_h5py_'+split
-    image_dir = '../Data/images/'+split+'/'
+    output_dir = '../Data/images/'+split+'/'
+    image_dir = '../Data/Dataset/images/'+split+'/'
     
     input_paths = []
     idx_set = set()
@@ -53,37 +52,36 @@ for split in splits:
     print(input_paths[0])
     print(input_paths[-1])
     
-    model = build_model(image_dir, output_h5_file, img_h, img_w, model,
+    model = build_model(image_dir, output_dir, img_h, img_w, model,
                         model_stage=model_stage, batch_size=batch_size)
     
     img_size = (img_h, img_w)
-    with h5py.File(output_h5_file, 'w') as f:
-        feat_dset = None
-        i0 = 0
-        cur_batch = []
-        
-        for i, (path, idx) in enumerate(input_paths):
-            img = imread(path, mode='RGB')
-            img = imresize(img, img_size, interp='bicubic')
-            img = img.transpose(2,0,1)[None]
-            cur_batch.append(img)
-            if len(cur_batch) == batch_size:
-                feats = run_batch(cur_batch, model)
-                if feat_dset is None:
-                    N = len(input_paths)
-                    _, C, H, W = feats.shape
-                    feat_dset = f.create_dataset('features', (N, C, H, W), 
-                                                 dtype=np.float32)
-                i1 = i0 + len(cur_batch)
-                feat_dset[i0:i1] = feats
-                i0 = i1
-                print('Processed %d / %d images' % (i1, len(input_paths)))
-                cur_batch = []
-        if len(cur_batch) > 0:
+    feat_dset = None
+    i0 = 0
+    cur_batch = []
+    paths = []
+    
+    for i, (path, idx) in enumerate(input_paths):
+        img = imread(path, mode='RGB')
+        img = imresize(img, img_size, interp='bicubic')
+        img = img.transpose(2,0,1)[None]
+        cur_batch.append(img)
+        paths.append(path)
+        if len(cur_batch) == batch_size:
             feats = run_batch(cur_batch, model)
+            for j in range(feats.shape[0]):
+                torch.save(feats[j], output_dir + paths[j].split('/')[-1])
             i1 = i0 + len(cur_batch)
-            feat_dset[i0:i1] = feats
+            i0 = i1
             print('Processed %d / %d images' % (i1, len(input_paths)))
-    
-    
-    
+            cur_batch = []
+            paths = []
+    if len(cur_batch) > 0:
+        feats = run_batch(cur_batch, model)
+        for j in range(feats.shape[0]):
+            torch.save(feats[j], output_dir + paths[j].split('/')[-1])
+        i1 = i0 + len(cur_batch)
+        print('Processed %d / %d images' % (i1, len(input_paths)))
+
+
+
