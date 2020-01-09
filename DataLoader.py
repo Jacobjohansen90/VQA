@@ -107,16 +107,15 @@ class ClevrDataset(Dataset):
             mask = all_image_idxs >= image_idx_start_from
           
     def __getitem__(self, i):
-        return (0,0,0,0,0,0,0,0,0,0)
-#        if self.eval:
-#            index = self.eval_index
-#            self.eval_index += 1
-#            if self.eval_index == len(self.all_questions):
-#                self.done = True
-#        else:
-#            index = self.sample_list[i] 
-#
-#        question = self.all_questions[index]
+        if self.eval:
+            index = self.eval_index
+            self.eval_index += 1
+            if self.eval_index == len(self.all_questions):
+                self.done = True
+        else:
+            index = self.sample_list[i] 
+
+        question = self.all_questions[index]
 #        answer = self.answers[index]
 #        image_idx = self.image_idxs[index]
 #        if self.programs is not None:
@@ -142,6 +141,8 @@ class ClevrDataset(Dataset):
 #        program, I = self.get_program(question)
 #
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
+        return (question,0,0,0,0,0,0,0,0,0)
+
     
     def __len__(self):
         return len(self.sample_list)
