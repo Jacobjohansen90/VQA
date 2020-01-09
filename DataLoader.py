@@ -64,8 +64,8 @@ class ClevrDataset(Dataset):
                 raise ValueError('Must provide index list')
             else:
                 self.sample_list = []
-                for i in range(len(self.index_list)):
-                    indexs = random.sample(self.index_list[str(i)], self.balanced_n)
+                for index in self.index_list.keys():
+                    indexs = random.sample(self.index_list[index], self.balanced_n)
                     self.sample_list.append(indexs)
                 for _ in range(self.max_samples - len(self.sample_list)):
                     while True:
@@ -80,12 +80,12 @@ class ClevrDataset(Dataset):
                 raise ValueError('Must provide index list')
             else:
                 max_n = 0
-                for i in range(self.categories):
-                    if len(self.index_list[str(i)]) > max_n:
-                        max_n = len(self.index_list[str(i)])
+                for index in self.index_list.keys():
+                    if len(self.index_list[index]) > max_n:
+                        max_n = len(self.index_list[index])
                 self.sample_list = list(range(max_n*self.categories))
                 for i in range(self.categories):
-                    current_list = self.index_list(str(i))
+                    current_list = self.index_list[index]
                     max_len = len(current_list)
                     k = 0
                     for j in range(max_n):
