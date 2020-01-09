@@ -114,7 +114,7 @@ class ClevrDataset(Dataset):
                 self.done = True
         else:
             index = self.sample_list[i] 
-
+        print(self.all_questions.shape)
         question = self.all_questions[index]
 #        answer = self.answers[index]
 #        image_idx = self.image_idxs[index]
