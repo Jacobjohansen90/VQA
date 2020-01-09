@@ -142,6 +142,9 @@ class ClevrDataset(Dataset):
 #
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
         print(question.shape)
+        print(index)
+        if question.shape[0] == 20:
+            print(question)
         return (question, question, question, question, question, question, question, question, question, question)
 
     
