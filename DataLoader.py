@@ -115,8 +115,7 @@ class ClevrDataset(Dataset):
         else:
             index = self.sample_list[i] 
         question = self.all_questions[index]
-        print(len(self.sample_list))
-#        answer = self.answers[index]
+        answer = self.answers[index]
 #        image_idx = self.image_idxs[index]
 #        if self.programs is not None:
 #            program_seq = self.programs[index]
@@ -143,7 +142,7 @@ class ClevrDataset(Dataset):
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
 
 
-        return (question, question, question, question, question, question, question, question, question, question)
+        return (question, answer, question, question, question, question, question, question, question, question)
 
     
     def __len__(self):
