@@ -126,23 +126,22 @@ class ClevrDataset(Dataset):
         
         image = None
         #Implement image loader here if needed
-#        if program_seq is not None:
-#            print('HER                   0')
-#            program_json_seq = []
-#            for fn_idx in program_seq:
-#                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
-#                if fn_str == '<START>' or fn_str == '<END>':
-#                    continue
-#                fn = P.str_to_function(fn_str)
-#                program_json_seq.append(fn)
-#                print('HER                   1')
-#            print('HER                   2')
-#            if self.mode == 'prefix':
-#                program_json = P.prefix_to_list(program_json_seq)
-#            elif self.mode == 'postfix':
-#                program_json = P.postfix_to_list(program_json_seq)
-        program_json = 1
-        program, I = self.get_program(question)
+        if program_seq is not None:
+            print('HER                   0')
+            program_json_seq = []
+            for fn_idx in program_seq:
+                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
+                if fn_str == '<START>' or fn_str == '<END>':
+                    continue
+                fn = P.str_to_function(fn_str)
+                program_json_seq.append(fn)
+                print('HER                   1')
+            print('HER                   2')
+            if self.mode == 'prefix':
+                program_json = P.prefix_to_list(program_json_seq)
+            elif self.mode == 'postfix':
+                program_json = P.postfix_to_list(program_json_seq)
+        program, I = None, None #self.get_program(question)
 
         return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
     
