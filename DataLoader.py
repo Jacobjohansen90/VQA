@@ -137,12 +137,11 @@ class ClevrDataset(Dataset):
                 program_json = P.prefix_to_list(program_json_seq)
             elif self.mode == 'postfix':
                 program_json = P.postfix_to_list(program_json_seq)
-#        program, I = self.get_program(question)
-#
-#        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
+        program, I = self.get_program(question)
+
+        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
 
 
-        return (question, image, feats, answer, program_seq, program_json, index, self.done, question, question)
 
     
     def __len__(self):
