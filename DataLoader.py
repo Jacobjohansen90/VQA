@@ -58,6 +58,7 @@ class ClevrDataset(Dataset):
 
         self.eval_index = 0
         self.eval = False
+        self.done = False
 
         if self.balanced_n is not None:
             if self.index_list is None:
