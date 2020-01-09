@@ -270,7 +270,7 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
-                        loss = program_generator(questions.cuda(), programs.cuda()).mean()
+                        loss = program_generator(questions, programs).mean()
                         #sum is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
@@ -295,12 +295,12 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
                         if args.multi_GPU:
-                            programs_pred = program_generator.module.reinforce_sample(questions.cuda())
+                            programs_pred = program_generator.module.reinforce_sample(questions)
                         else:
-                            programs_pred = program_generator.reinforce_sample(questions.cuda())
-                        scores = execution_engine(feats.cuda(), programs_pred.cuda())
+                            programs_pred = program_generator.reinforce_sample(questions)
+                        scores = execution_engine(feats, programs_pred)
                         ee_optimizer.zero_grad()
-                        loss = loss_fn(scores, answers.cuda().squeeze(1))
+                        loss = loss_fn(scores, answers.squeeze(1))
                         loss.backward()
                         ee_loss.append(loss.item())
                         ee_optimizer.step()
