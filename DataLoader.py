@@ -149,20 +149,21 @@ class ClevrDataset(Dataset):
         
     def get_program(self, question):
         q_name = '-'.join(str(int(e)) for e in question if e != 0)
-        if os.path.exists(self.hr_path+q_name):
-            programs_list = os.listdir(self.hr_path+q_name)
-            if programs_list[0][-4:] == 'MAPO':
-                length = len(programs_list)
-                programs = torch.zeros(length, 30)
-                for i in range(length):  
-                    p_name = os.listdir(self.hr_path + q_name)[i]
+        if self.hr_path is not None:
+            if os.path.exists(self.hr_path+q_name):
+                programs_list = os.listdir(self.hr_path+q_name)
+                if programs_list[0][-4:] == 'MAPO':
+                    length = len(programs_list)
+                    programs = torch.zeros(length, 30)
+                    for i in range(length):  
+                        p_name = os.listdir(self.hr_path + q_name)[i]
+                        program = torch.load(self.hr_path + q_name + '/' + p_name)
+                        programs[i] = program
+                    return programs, False
+                else:
+                    p_name = os.listdir(self.hr_path + q_name)[0]
                     program = torch.load(self.hr_path + q_name + '/' + p_name)
-                    programs[i] = program
-                return programs, False
-            else:
-                p_name = os.listdir(self.hr_path + q_name)[0]
-                program = torch.load(self.hr_path + q_name + '/' + p_name)
-                return program, True
+                    return program, True
         else:
             return None, False
     
