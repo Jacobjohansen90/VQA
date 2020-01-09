@@ -126,7 +126,7 @@ class ClevrDataset(Dataset):
         
         image = None
         #Implement image loader here if needed
-
+        print('HER                   0')
         if program_seq is not None:
             program_json_seq = []
             for fn_idx in program_seq:
@@ -139,7 +139,11 @@ class ClevrDataset(Dataset):
                 program_json = P.prefix_to_list(program_json_seq)
             elif self.mode == 'postfix':
                 program_json = P.postfix_to_list(program_json_seq)
+        print('HER                   1')
+
         program, I = self.get_program(question)
+        print('HER                   2')
+
         return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
     
     def __len__(self):
