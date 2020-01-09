@@ -117,8 +117,8 @@ if __name__ == '__main__':
     checkpoint_path = None
     
     val_loader_kwargs = {
-            'question': args.val_questions,
-            'feature': args.val_features,
+            'question_path': args.val_questions,
+            'feature_path': args.val_features,
             'vocab': vocab,
             'batch_size': args.batch_size,
             'max_samples': args.num_val_samples,
@@ -191,8 +191,8 @@ if __name__ == '__main__':
 
                 
         train_loader_kwargs = {
-            'question_h5': args.train_questions_h5,
-            'feature_h5': args.train_features_h5,
+            'question_path': args.train_questions,
+            'feature_path': args.train_features,
             'vocab':vocab,
             'batch_size':args.batch_size,
             'shuffle': args.shuffle_train_data,
