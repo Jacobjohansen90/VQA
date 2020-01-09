@@ -141,7 +141,7 @@ class ClevrDataset(Dataset):
 #        program, I = self.get_program(question)
 #
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
-        print(question)
+        print(question.shape)
         return (question, question, question, question, question, question, question, question, question, question)
 
     
