@@ -116,14 +116,14 @@ class ClevrDataset(Dataset):
             index = self.sample_list[i] 
         question = self.all_questions[index]
         answer = self.answers[index]
-#        image_idx = self.image_idxs[index]
-#        if self.programs is not None:
-#            program_seq = self.programs[index]
-#        
-#        feats = torch.load(self.feature_path + image_idx)
-#        feats = torch.FloatTensor(feats)
-#        
-#        image = None
+        image_idx = self.image_idxs[index]
+        if self.programs is not None:
+            program_seq = self.programs[index]
+        
+        feats = torch.load(self.feature_path + image_idx)
+        feats = torch.FloatTensor(feats)
+        
+        image = None
 #        #Implement image loader here if needed
 #        if program_seq is not None:
 #            program_json_seq = []
@@ -142,7 +142,7 @@ class ClevrDataset(Dataset):
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
 
 
-        return (question, answer, question, question, question, question, question, question, question, question)
+        return (question, image, feats, answer, program_seq, question, question, question, question, question)
 
     
     def __len__(self):
