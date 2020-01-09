@@ -114,8 +114,7 @@ class ClevrDataset(Dataset):
 
         question = self.all_questions[index]
         answer = self.answers[index]
-        print(self.image_idxs.shape)
-        print(self.image_idxs)
+        print(self.image_idxs[()])
         print(index)
         image_idx = self.image_idxs[()][index]
         if self.programs is not None:
