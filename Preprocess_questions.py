@@ -99,7 +99,7 @@ for name in questions_list:
                     vocab['question_token_to_idx'][word] = idx
                     num_new_words += 1
             print('Expanded vocab with %d new words' % num_new_words)
-    input_vocab = output_vocab
+    input_vocab = output_vocab #Ensures that we expand vocab after first pass
     if output_vocab != '':
         with open(output_vocab, 'w') as f:
             json.dump(vocab, f)

@@ -117,8 +117,8 @@ if __name__ == '__main__':
     checkpoint_path = None
     
     val_loader_kwargs = {
-            'question_h5': args.val_questions_h5,
-            'feature_h5': args.val_features_h5,
+            'question': args.val_questions,
+            'feature': args.val_features,
             'vocab': vocab,
             'batch_size': args.batch_size,
             'max_samples': args.num_val_samples,
