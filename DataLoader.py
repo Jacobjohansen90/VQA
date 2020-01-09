@@ -51,7 +51,7 @@ class ClevrDataset(Dataset):
 
         self.all_questions = dataset_to_tensor(questions[()]['questions'], mask)
         self.answers = dataset_to_tensor(questions[()]['answers'], mask)
-        self.image_idxs = questions[()]['image_idxs'], mask
+        self.image_idxs = questions[()]['image_idxs']
         self.programs = None
         if 'programs' in questions[()].keys():
             self.programs = dataset_to_tensor(questions[()]['programs'], mask)
