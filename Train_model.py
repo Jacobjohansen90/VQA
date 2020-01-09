@@ -266,6 +266,7 @@ if __name__ == '__main__':
             if model_ == 'PG':
                 while True:
                     for batch in train_loader:
+                        print(t)
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
@@ -284,10 +285,10 @@ if __name__ == '__main__':
                                                  checkpoint_path)
                             pg_loss = []
                             
-                        if break_counter >= args.break_after:
-                            cont = False
-                            break
-                    
+                            if break_counter >= args.break_after:
+                                cont = False
+                                break
+                        
             elif model_ == 'EE':
                 while True:
                     for batch in train_loader:
@@ -313,9 +314,9 @@ if __name__ == '__main__':
                                                  checkpoint_path)
                             ee_loss = []
                             
-                        if break_counter >= args.break_after:
-                            cont = False
-                            break
+                            if break_counter >= args.break_after:
+                                cont = False
+                                break
 
             elif model_ == 'MAPO':
                 while True:
@@ -401,9 +402,9 @@ if __name__ == '__main__':
                                                  checkpoint_path)
                             pg_loss = []
                             ee_loss = []
-                        if break_counter >= args.break_after:
-                            for p in processes:
-                                p.terminate()
-                            cont = False
-                            break
+                            if break_counter >= args.break_after:
+                                for p in processes:
+                                    p.terminate()
+                                cont = False
+                                break
     print('All models are done training')
