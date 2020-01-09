@@ -139,7 +139,7 @@ class ClevrDataset(Dataset):
                 program_json = P.postfix_to_list(program_json_seq)
         program, I = self.get_program(question)
 
-        return (question.cuda(), image, feats.cuda(), answer.cuda(), program_seq, program_json.cuda(), index, self.done, program.cuda(), I)
+        return (question.cuda(), image, feats.cuda(), answer.cuda(), program_seq, program_json, index, self.done, program, I)
 
 
 
