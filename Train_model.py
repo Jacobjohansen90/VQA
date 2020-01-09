@@ -17,6 +17,7 @@ from MAPO_workers import MAPO_CPU
 
 #%% Setup Params
 if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--multi_GPU', default=True) #Use all avalaible GPUs?
