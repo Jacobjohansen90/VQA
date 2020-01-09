@@ -116,7 +116,7 @@ class ClevrDataset(Dataset):
         answer = self.answers[index]
         print(self.image_idxs[()])
         print(index)
-        image_idx = self.image_idxs[()][index]
+        image_idx = self.image_idxs[index]
         if self.programs is not None:
             program_seq = self.programs[index]
         
