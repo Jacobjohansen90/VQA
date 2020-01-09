@@ -114,8 +114,8 @@ class ClevrDataset(Dataset):
                 self.done = True
         else:
             index = self.sample_list[i] 
-        print(self.all_questions.shape)
         question = self.all_questions[index]
+        question.reshape(1, question.shape[0])
 #        answer = self.answers[index]
 #        image_idx = self.image_idxs[index]
 #        if self.programs is not None:
@@ -141,10 +141,7 @@ class ClevrDataset(Dataset):
 #        program, I = self.get_program(question)
 #
 #        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
-        print(question.shape)
-        print(index)
-        if question.shape[0] == 20:
-            print(question)
+
         return (question, question, question, question, question, question, question, question, question, question)
 
     
