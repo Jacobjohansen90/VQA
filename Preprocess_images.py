@@ -7,7 +7,6 @@ Created on Mon Sep 30 11:31:25 2019
 """
 
 import os
-import numpy as np
 from scipy.misc import imread, imresize
 import torch
 
@@ -16,9 +15,9 @@ from Preprocess_funcs import build_model, run_batch
 ##Args
 
 feature_model = 'resnet101'
-split = 'all'
+split = 'val'
 max_images = None
-model = 'resnet101'
+model_ = 'resnet101'
 model_stage = 3
 batch_size = 32
 img_h = img_w = 224
@@ -52,7 +51,7 @@ for split in splits:
     print(input_paths[0])
     print(input_paths[-1])
     
-    model = build_model(image_dir, output_dir, img_h, img_w, model,
+    model = build_model(image_dir, output_dir, img_h, img_w, model_,
                         model_stage=model_stage, batch_size=batch_size)
     
     img_size = (img_h, img_w)
@@ -80,6 +79,7 @@ for split in splits:
         feats = run_batch(cur_batch, model)
         for j in range(feats.shape[0]):
             torch.save(feats[j], output_dir + paths[j].split('/')[-1])
+            #Files are saved with .png extension, slighty ambigious.
         i1 = i0 + len(cur_batch)
         print('Processed %d / %d images' % (i1, len(input_paths)))
 

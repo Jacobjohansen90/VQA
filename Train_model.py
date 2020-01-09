@@ -12,11 +12,8 @@ from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
 
-
-
-#TODO: Load stats properbly
-#TODO: Create oversample.json during preprocessing
 #TODO: image idx start from / mask does not work in dataloader
+
 #%% Setup Params
 if __name__ == '__main__':
     mp.set_start_method('spawn')
@@ -26,13 +23,9 @@ if __name__ == '__main__':
     parser.add_argument('--info', default=False)
     #Do you want all info or minimal?
 
-    #Amount of times we train with postives and negatives examples in one pass
-    parser.add_argument('--ee_train_count', default=1, type=int)
-    parser.add_argument('--pg_train_count', default=1, type=int)    
-
     #Training length / early stopping
     parser.add_argument('--num_iterations', default=200000, type=int)
-    parser.add_argument('--break_after', default=10, type=int)
+    parser.add_argument('--break_after', default=5, type=int)
     #If val has not improved after break_after checks, we early stop
 
     #Samples and shuffeling
@@ -45,7 +38,7 @@ if __name__ == '__main__':
     #If None we load all examples
 
     # Optimization options
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
@@ -73,20 +66,19 @@ if __name__ == '__main__':
     parser.add_argument('--MAPO_check_bf_argmax', default=False)
     
     #Datapaths
-    parser.add_argument('--train_questions_h5', default='../Data/h5py/questions_h5py_train')
-    parser.add_argument('--train_features_h5', default='../Data/h5py/img_features_h5py_train')
-    parser.add_argument('--val_questions_h5', default='../Data/h5py/questions_h5py_val')
-    parser.add_argument('--val_features_h5', default='../Data/h5py/img_features_h5py_val')
+    parser.add_argument('--train_questions', default='../Data/questions/train.npy')
+    parser.add_argument('--train_features', default='../Data/images/train/')
+    parser.add_argument('--val_questions', default='../Data/questions/val.npy')
+    parser.add_argument('--val_features', default='../Data/images/val/')
     parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
     parser.add_argument('--high_reward_path', default='../Data/high_reward_paths/')    
     parser.add_argument('--checkpoint_path', default='../Data/models/')
     parser.add_argument('--bf_load_path', default='../Data/bloom_filters/')
-    parser.add_argument('--oversampling_list', default='../Data/oversample.json')
-    parser.add_argument('--path_to_index_file', default='../Data/ans_to_index.json')
+    parser.add_argument('--path_to_index_file', default='../Data/questions/ans_to_index.npy')
     
     #Dataloader params
     parser.add_argument('--feature_dim', default='1024,14,14')
-    parser.add_argument('--loader_num_workers', type=int, default=1)
+    parser.add_argument('--loader_num_workers', type=int, default=2)
     
     # Program generator (LSTM Model) options
     parser.add_argument('--rnn_wordvec_dim', default=300, type=int)
@@ -252,7 +244,7 @@ if __name__ == '__main__':
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
                  'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}
         
-        t, epoch = 0,0
+        t, epoch, reward_moving_avg = 0,0,0
         pg_loss = []
         ee_loss = []
         break_counter = 0
@@ -371,12 +363,23 @@ if __name__ == '__main__':
                                 change_que.put((change_indexs, change_programs, 'positive'))
                                 I[I_ == True] = True
 
-                        #PG Train where applicable
+                        #PG positive examples training using backprop
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                         loss.backward()
                         pg_loss.append(loss.item())
                         pg_optimizer.step()
+                        
+                        #PG negative examples training using RL
+                        if args.pg_RL:
+                            raw_reward = (preds == answers).float()
+                            reward_moving_avg *= args.reward_decay
+                            reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+                            centered_reward = raw_reward - reward_moving_avg
+                                                    
+                            pg_optimizer.zero_grad()
+                            program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
+                            pg_optimizer.step()
                         
                                                                                   
                         if t % args.checkpoint_every == 0:
