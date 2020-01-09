@@ -13,6 +13,7 @@ import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
 
 #TODO: image idx start from / mask does not work in dataloader
+#TODO: RL rewards are not recorded
 
 #%% Setup Params
 if __name__ == '__main__':
@@ -42,6 +43,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
+    parser.add_argument('--L2_pg', default=0.001, type=float)
+    parser.add_argument('--L2_ee', default=0.0001, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
@@ -64,6 +67,8 @@ if __name__ == '__main__':
     parser.add_argument('--MAPO_qsize', default=320, type=int)
     parser.add_argument('--MAPO_sample_argmax', default=False)
     parser.add_argument('--MAPO_check_bf_argmax', default=False)
+    parser.add_argument('--pg_RL', default=True) #Train PG negatively using RL
+    parser.add_argument('--alpha', default=1, type=float) #Weight for RL loss
     
     #Datapaths
     parser.add_argument('--train_questions', default='../Data/questions/train.npy')
@@ -78,7 +83,7 @@ if __name__ == '__main__':
     
     #Dataloader params
     parser.add_argument('--feature_dim', default='1024,14,14')
-    parser.add_argument('--loader_num_workers', type=int, default=2)
+    parser.add_argument('--loader_num_workers', type=int, default=3)
     
     # Program generator (LSTM Model) options
     parser.add_argument('--rnn_wordvec_dim', default=300, type=int)
@@ -153,7 +158,8 @@ if __name__ == '__main__':
             oversample = False
             program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
             pg_optimizer = torch.optim.Adam(program_generator.parameters(),
-                                            lr=args.learning_rate_PG)
+                                            lr=args.learning_rate_PG,
+                                            weight_decay=args.L2_pg)
 
         elif model_ == 'EE':
             balanced_n = None
@@ -161,16 +167,19 @@ if __name__ == '__main__':
             program_generator, pg_kwargs = func.get_program_generator(vocab, args)        
             execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
             ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
-                                                lr=args.learning_rate_EE)
+                                                lr=args.learning_rate_EE,
+                                                weight_decay=args.L2_ee)
         elif model_ == 'MAPO':
             balanced_n = None
             oversample = args.oversample
             program_generator, pg_kwargs = func.get_program_generator(vocab, args)
             execution_engine, ee_kwargs = func.get_execution_engine(vocab, args)
             pg_optimizer = torch.optim.Adam(program_generator.parameters(),
-                                            lr=args.learning_rate_MAPO)
+                                            lr=args.learning_rate_MAPO,
+                                            weight_decay=args.L2_pg)
             ee_optimizer = torch.optim.Adam(execution_engine.parameters(),
-                                            lr=args.learning_rate_MAPO)
+                                            lr=args.learning_rate_MAPO,
+                                            weight_decay=args.L2_ee)
             
         #Auto checkpointing        
         model_name = func.auto_namer(model_, args)

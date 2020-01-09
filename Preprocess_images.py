@@ -7,20 +7,26 @@ Created on Mon Sep 30 11:31:25 2019
 """
 
 import os
-from scipy.misc import imread, imresize
 import torch
-
+import cv2
 from Preprocess_funcs import build_model, run_batch
+
+#from scipy.misc import imread, imresize
 
 ##Args
 
 feature_model = 'resnet101'
-split = 'val'
+split = 'all'
 max_images = None
 model_ = 'resnet101'
 model_stage = 3
 batch_size = 32
 img_h = img_w = 224
+
+if not os.path.exists('../Data/'):
+    os.mkdir('../Data/')
+if not os.path.exists('../Data/images/'):
+    os.mkdir('../Data/images')
 
 ##Preprocessing
 if split == 'all':
@@ -29,7 +35,9 @@ else:
     splits = [split]
 for split in splits:
     output_dir = '../Data/images/'+split+'/'
-    image_dir = '../Data/Dataset/images/'+split+'/'
+    image_dir = '../Dataset/images/'+split+'/'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
     
     input_paths = []
     idx_set = set()
@@ -61,9 +69,14 @@ for split in splits:
     paths = []
     
     for i, (path, idx) in enumerate(input_paths):
-        img = imread(path, mode='RGB')
-        img = imresize(img, img_size, interp='bicubic')
+        img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, img_size, interpolation=cv2.INTER_CUBIC)
         img = img.transpose(2,0,1)[None]
+        #Old code for scipy.misc.imread
+        #img = imread(path, mode='RGB')
+        #img = imresize(img, img_size, interp='bicubic')
+        #img = img.transpose(2,0,1)[None]
         cur_batch.append(img)
         paths.append(path)
         if len(cur_batch) == batch_size:

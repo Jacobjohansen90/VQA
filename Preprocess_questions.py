@@ -7,14 +7,15 @@ Created on Thu Sep 26 11:44:06 2019
 """
 
 import json
+import os
 import numpy as np
 from Preprocess_funcs import tokenize, build_vocab, encode, program_to_str
 ##Args
 
-path = "../Data/Dataset/questions/"
+path = "../Dataset/questions/"
 questions = "all" #train / val / test / all
 
-input_vocab = '../Data/vocab/vocab.json' #Path to json vocab we want to expand (empty '' = create new)
+input_vocab = '' #Path to json vocab we want to expand (empty '' = create new)
 output_vocab = '../Data/vocab/vocab.json' #Dumb path for new expanded vocab
 expand_vocab = 'y' #Are we expanding already existing vocab? y/n
 
@@ -27,6 +28,15 @@ keep_program = 'y' #Keep supervision for programs? y/n
 
 allow_unk = False #Allow <UNK> entries in vocab? True/False
 mode = 'prefix'
+
+folders = ['bloom_filters/', 'high_reward_paths/', 'models/', 'questions/', 'vocab/']
+if not os.path.exists('../Data/'):
+    os.mkdir('../Data/')
+
+for folder in folders:
+    if not os.path.exists('../Data/'+folder):
+        os.mkdir('../Data/'+folder)
+
 
 ##Preprocessing
 if questions == 'all':

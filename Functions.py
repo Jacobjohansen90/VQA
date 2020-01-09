@@ -156,27 +156,26 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     elif model == 'MAPO' and mode != 'train':
         loader.eval_mode()
     num_correct, num_samples = 0,0
-    done = False
-    while not done:
-        if model == 'MAPO' and mode == 'train':
-            questions, feats, answers, done = loader.get()
-        else:
-            questions, _, feats, answers, programs, _, _, done = loader.batch()
+    done = 0
+    while done.sum() == 0:
+        questions, _, feats, answers, programs, _, _, done, _, _ = loader.batch()
+        if done.sum() != 0:
+            mask = done == False
         scores = None
-        programs_pred = program_generator.module.reinforce_sample(questions.cuda())
+        programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
         if model == 'PG':
-            I1 = (programs_pred != 0)
-            I2 = (programs != 0)
-            for i in range(programs_pred.shape[0]):
+            I1 = (programs_pred[mask] != 0)
+            I2 = (programs[mask] != 0)
+            for i in range(programs_pred[mask].shape[0]):
                 num_samples += 1
                 if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
                     if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
                         num_correct += 1
 
         else: 
-            scores = execution_engine(feats.cuda(), programs_pred)
+            scores = execution_engine(feats[mask].cuda(), programs_pred[mask])
             _, preds = scores.data.cpu().max(1)
-            num_correct += (preds == answers.squeeze(1)).sum()
+            num_correct += (preds == answers[mask].squeeze(1)).sum()
             num_samples += preds.size(0)
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
