@@ -12,8 +12,7 @@ from torch.utils.data.dataloader import default_collate
 import Program_funcs as P
 import random
 import os
-import torch.multiprocessing as mp
-mp.set_start_method('spawn')
+
 
 
 def dataset_to_tensor(dataset, mask=None):
