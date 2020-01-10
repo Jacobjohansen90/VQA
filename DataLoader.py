@@ -120,9 +120,9 @@ class ClevrDataset(Dataset):
         if self.programs is not None:
             program_seq = self.programs[index]
         
-        #feats = torch.load(self.feature_path + image_idx)
-        #feats = torch.FloatTensor(feats)
-        feats = torch.zeros((1024,14,14))
+        feats = torch.load(self.feature_path + image_idx)
+        feats = torch.FloatTensor(feats)
+#        feats = torch.zeros((1024,14,14))
         
         image = None
         #Implement image loader here if needed
