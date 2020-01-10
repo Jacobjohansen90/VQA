@@ -158,7 +158,7 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     while cont:
         for batch in loader:
             t += 1
-            print(t)
+#            print(t)
             questions, _, feats, answers, programs, _, _, done, _, _ = batch
             mask = -1
             if True in done:
