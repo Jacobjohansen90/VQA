@@ -334,6 +334,9 @@ if __name__ == '__main__':
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
+                            print(programs)
+                            print(programs[i])
+                            assert 2 == 4
                             if programs[i].shape == 1 and programs[i] != programs[i]:
                                 continue
                             else:
@@ -363,8 +366,9 @@ if __name__ == '__main__':
                         ee_optimizer.zero_grad()
                         loss = loss_fn(scores, answers.cuda())
                         loss.backward()
-                        ee_loss.append(loss.item())
                         ee_optimizer.step()
+                        ee_loss.append(loss.item())
+
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
                         if I_ != I:
@@ -386,8 +390,8 @@ if __name__ == '__main__':
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                         loss.backward()
-                        pg_loss.append(loss.item())
                         pg_optimizer.step()
+                        pg_loss.append(loss.item())
                         
                         #PG negative examples training using RL
                         if args.pg_RL:
