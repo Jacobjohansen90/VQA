@@ -179,7 +179,7 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
                 _, preds = scores.data.cpu().max(1)
                 num_correct += (preds == answers[:mask].squeeze(1)).sum()
                 num_samples += preds.size(0)
-            if done.sum() != 0:
+            if True in done:
                 cont = False
                 break
     set_mode('train', [program_generator, execution_engine])
