@@ -113,7 +113,7 @@ class ClevrDataset(Dataset):
             if self.eval_index == len(self.all_questions):
                 self.done = True
         else:
-            index = self.sample_list[i] 
+            index = self.sample_list[i%len(self.sample_list)] 
         question = self.all_questions[index]
         answer = self.answers[index]
         image_idx = self.image_idxs[index]
@@ -144,7 +144,7 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        return len(self.sample_list)
+        return 10**16
     
     def eval_mode(self):
         self.eval = True
