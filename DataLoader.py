@@ -107,7 +107,7 @@ class ClevrDataset(Dataset):
             mask = all_image_idxs >= image_idx_start_from
           
     def __getitem__(self, i):
-        return (torch.zeros(46).long(), None, None, torch.LongTensor(1), torch.zeros(27), None, None, None, None, None)
+        return (torch.zeros(46).long(), None, None, torch.LongTensor(1), torch.zeros(27).long(), None, None, None, None, None)
 #        if self.eval:
 #            index = self.eval_index
 #            self.eval_index += 1
