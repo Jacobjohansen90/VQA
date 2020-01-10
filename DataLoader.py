@@ -110,7 +110,10 @@ class ClevrDataset(Dataset):
         if self.eval:
             index = self.eval_index
             self.eval_index += 1
-            if self.eval_index == len(self.all_questions):
+            if self.max_samples is not None:
+                if self.eval_index == self.max_samples:
+                    self.done = True
+            elif self.eval_index == len(self.all_questions):
                 self.done = True
         else:
             index = self.sample_list[i%len(self.sample_list)] 
