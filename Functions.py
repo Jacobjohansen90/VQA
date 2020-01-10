@@ -171,7 +171,7 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
         else: 
             scores = execution_engine(feats.cuda(), programs_pred.cuda())
             _, preds = scores.data.cpu().max(1)
-            num_correct += (preds == answers.squeeze(1)).sum()
+            num_correct += (preds == answers).sum()
             num_samples += preds.size(0)
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
