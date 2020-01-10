@@ -278,7 +278,6 @@ if __name__ == '__main__':
             if model_ == 'PG':
                 while inner_cont:
                     for batch in train_loader:
-                        print(t)
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
@@ -309,10 +308,10 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
                         if args.multi_GPU:
-                            programs_pred = program_generator.module.reinforce_sample(questions)
+                            programs_pred = program_generator.module.reinforce_sample(questions.cuda())
                         else:
-                            programs_pred = program_generator.reinforce_sample(questions)
-                        scores = execution_engine(feats, programs_pred)
+                            programs_pred = program_generator.reinforce_sample(questions.cuda())
+                        scores = execution_engine(feats.cuda(), programs_pred.cuda())
                         ee_optimizer.zero_grad()
                         loss = loss_fn(scores, answers.squeeze(1))
                         loss.backward()
