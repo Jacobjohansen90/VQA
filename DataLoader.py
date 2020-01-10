@@ -160,7 +160,7 @@ class ClevrDataset(Dataset):
                     program = torch.load(self.hr_path + q_name + '/' + p_name)
                     return program, torch.tensor([True])
         else:
-            return torch.Tensor([float('nan')]), torch.tensor([False])
+            return torch.Tensor([float('nan')]*30), torch.tensor([False])
     
 class ClevrDataLoader(DataLoader):
     def __init__(self, **kwargs):

@@ -66,6 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('--MAPO_qsize', default=320, type=int)
     parser.add_argument('--MAPO_sample_argmax', default=False)
     parser.add_argument('--MAPO_check_bf_argmax', default=False)
+    parser.add_argument('--MAPO_programs_pr_pass', default=20, type=int)
     parser.add_argument('--pg_RL', default=True) #Train PG negatively using RL
     parser.add_argument('--alpha', default=1, type=float) #Weight for RL loss
     
