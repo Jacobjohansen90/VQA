@@ -60,7 +60,7 @@ class ClevrDataset(Dataset):
 
         self.eval_index = 0
         self.eval = False
-        self.done = torch.zeros(1)
+        self.done = False
 
         if self.balanced_n is not None:
             if self.index_list is None:
@@ -111,7 +111,7 @@ class ClevrDataset(Dataset):
             index = self.eval_index
             self.eval_index += 1
             if self.eval_index == len(self.all_questions):
-                self.done = torch.ones(1)
+                self.done = True
         else:
             index = self.sample_list[i%len(self.sample_list)] 
         question = self.all_questions[index]
@@ -149,7 +149,7 @@ class ClevrDataset(Dataset):
     def eval_mode(self):
         self.eval = True
         self.eval_index = 0
-        self.done = torch.zeros(1)
+        self.done = False
         
     def get_program(self, question):
         q_name = '-'.join(str(int(e)) for e in question if e != 0)
