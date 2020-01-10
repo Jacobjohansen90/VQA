@@ -108,10 +108,12 @@ class ClevrDataset(Dataset):
           
     def __getitem__(self, i):
         if self.eval:
+            print(self.max_samples)
             index = self.eval_index
             self.eval_index += 1
             if self.max_samples is not None:
                 if self.eval_index == self.max_samples:
+                    print(self.eval_index)
                     self.done = True
             elif self.eval_index == len(self.all_questions):
                 self.done = True
