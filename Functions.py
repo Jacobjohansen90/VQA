@@ -153,7 +153,7 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     set_mode('eval', [program_generator, execution_engine])
     loader.eval_mode()
     num_correct, num_samples = 0,0
-    done = 0
+    done = torch.zeros(1)
     while done.sum() == 0:
         questions, _, feats, answers, programs, _, _, done, _, _ = loader.batch()
         if done.sum() != 0:
