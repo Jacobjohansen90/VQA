@@ -201,6 +201,7 @@ if __name__ == '__main__':
             'shuffle': args.shuffle_train_data,
             'pin_memory': True,
             'max_samples': args.num_train_samples,
+            'max_og_samples': args.num_PG_samples,
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
             'oversample':oversample,
