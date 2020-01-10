@@ -191,8 +191,7 @@ class ClevrDataLoader(DataLoader):
                                     balanced_n=balanced_n, oversample=oversample,
                                     index_list_path=index_list_path, image_h5=self.image_h5,
                                     max_samples=max_samples, hr_path=hr_path,
-                                    image_idx_start_from=image_idx_start_from,
-                                    pg_samples=pg_samples)
+                                    image_idx_start_from=image_idx_start_from)
         kwargs['collate_fn'] = self.clevr_collate
         super(ClevrDataLoader, self).__init__(self.dataset, **kwargs)
     
