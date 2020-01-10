@@ -201,7 +201,6 @@ class Seq2Seq(nn.Module):
         return multinomial_output, multinomial_probs, multinomial_m
         
     def reinforce_sample(self, x, temperature=1.0, argmax=False):
-        print(x.shape)
         N, T = x.size(0), self.max_length
         encoded = self.encoder(x)
         y = torch.LongTensor(N, T).fill_(self.NULL)
