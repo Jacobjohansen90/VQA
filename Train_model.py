@@ -336,7 +336,7 @@ if __name__ == '__main__':
                             if programs[i].shape == 1 and programs[i] != programs[i]:
                                 continue
                             else:
-                                scores = execution_engine(feats[i].expand(len(programs[i])).cuda(),
+                                scores = execution_engine(feats[i].unsqueeze(0).expand(len(programs[i])).cuda(),
                                                           programs.cuda())
                                 _, preds = scores.data.cpu.max(1)
                                 I_test = (preds == answers[i].expand(len(programs[i])))
