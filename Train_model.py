@@ -329,7 +329,7 @@ if __name__ == '__main__':
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
-                        for i in len(programs):
+                        for i in range(len(programs)):
                             if programs[i] is not list:
                                 continue
                             else:
