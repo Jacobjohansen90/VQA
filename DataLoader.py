@@ -108,7 +108,7 @@ class ClevrDataset(Dataset):
           
     def __getitem__(self, i):
         
-        return (torch.zeros(46), None, torch.zeros(1024,14,14), torch.zeros(1), torch.zeros(46), torch.zeros(46), None, None, None, None)
+        return (torch.zeros(46).long(), None, torch.zeros(1024,14,14), torch.zeros(1).long(), torch.zeros(46).long(), torch.zeros(46).long(), None, None, None, None)
 #        if self.eval:
 #            index = self.eval_index
 #            self.eval_index += 1
