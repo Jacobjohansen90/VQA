@@ -271,7 +271,7 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
-                        loss = program_generator(questions, programs).mean()
+                        loss = program_generator(questions.cuda(), programs.cuda()).mean()
                         #sum is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
