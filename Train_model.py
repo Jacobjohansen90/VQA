@@ -63,7 +63,6 @@ if __name__ == '__main__':
     parser.add_argument('--bf_false_pos_rate', default=0.01, type=float)
     
     #MAPO
-    parser.add_argument('--MAPO_clean_up', default=1, type=int)
     parser.add_argument('--MAPO_max_cpus', default=24, type=int)
     parser.add_argument('--MAPO_qsize', default=320, type=int)
     parser.add_argument('--MAPO_sample_argmax', default=False)
@@ -238,8 +237,7 @@ if __name__ == '__main__':
             execution_engine.cuda()
 
             #Fill high reward buffer
-            if args.MAPO_clean_up:
-                func.clean_up(args)
+            func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
             print('Making HR paths')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
