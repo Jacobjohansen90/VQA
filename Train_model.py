@@ -273,6 +273,7 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:
                         t += 1
+                        print(t)
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions.cuda(), programs.cuda()).mean()
