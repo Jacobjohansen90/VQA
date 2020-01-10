@@ -151,7 +151,6 @@ def get_state(m):
             
 def check_accuracy(args, model, program_generator, execution_engine, loader, mode):
     set_mode('eval', [program_generator, execution_engine])
-    loader.eval_mode()
     num_correct, num_samples = 0,0
     t = 0
     for batch in loader:
