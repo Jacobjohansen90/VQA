@@ -151,10 +151,7 @@ def get_state(m):
             
 def check_accuracy(args, model, program_generator, execution_engine, loader, mode):
     set_mode('eval', [program_generator, execution_engine])
-    if model != 'MAPO':
-        loader.eval_mode()
-    elif model == 'MAPO' and mode != 'train':
-        loader.eval_mode()
+    loader.eval_mode()
     num_correct, num_samples = 0,0
     done = 0
     while done.sum() == 0:

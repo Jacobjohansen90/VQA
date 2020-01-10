@@ -212,6 +212,9 @@ class ClevrDataLoader(DataLoader):
     
     def __enter__(self):
         return self
+    
+    def eval_mode(self):
+        self.dataset.eval_mode()
             
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
