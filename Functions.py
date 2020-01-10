@@ -234,9 +234,9 @@ def checkpoint_func(args, model, program_generator, execution_engine,
 def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
     if args.train_questions_h5 + '_MAPO' not in os.listdir():
         print('Copying questions for MAPO loader')
-        shutil.copyfile(args.train_questions_h5, args.train_questions_h5 + '_MAPO') 
+        shutil.copyfile(args.train_questions, args.train_questions + '_MAPO') 
 
-    q_path = args.train_questions_h5+'_MAPO'    
+    q_path = args.train_questions+'_MAPO'    
     question_h5 = h5py.File(q_path, 'r')
     all_questions = dataset_to_tensor(question_h5, None)
            
