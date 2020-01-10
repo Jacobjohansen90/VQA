@@ -288,8 +288,6 @@ if __name__ == '__main__':
                                                  vocab, break_counter, best_pg_state, best_ee_state,
                                                  checkpoint_path)
                             pg_loss = []
-                            print(break_counter)
-                            print(args.break_after)
                             if break_counter >= args.break_after:
                                 cont = False
                                 inner_cont = False
@@ -352,6 +350,9 @@ if __name__ == '__main__':
                         
                         #Force programs if no high reward path
                         if args.multi_GPU and torch.cuda.device_count() > 1:
+                            print(I.shape)
+                            print(~I.shape)
+                            print(questions.shape)
                             programs[~I] = program_generator.module.reinforce_sample(questions[~I].cuda())
                         else:
                             programs[~I] = program_generator.reinforce_sample(questions[~I].cuda())

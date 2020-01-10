@@ -25,7 +25,7 @@ def dataset_to_tensor(dataset, mask=None):
 class ClevrDataset(Dataset):
     def __init__(self, question_path, feature_path, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list_path=None,
-                 image_h5=None, max_samples=None, hr_path=None,
+                 image_path=None, max_samples=None, hr_path=None,
                  image_idx_start_from=None):
         mode_choices = ['prefix', 'postfix']
         if mode not in mode_choices:
@@ -175,11 +175,6 @@ class ClevrDataLoader(DataLoader):
         balanced_n = kwargs.pop('balanced_n', None)
         feature_path = kwargs.pop('feature_path')
         hr_path = kwargs.pop('high_reward_path', None)
-        pg_samples = kwargs.pop('max_pg_samples', None)
-        self.image_h5 = None
-        if 'image_h5' in kwargs:
-            image_h5_path = kwargs.pop('image_h5')
-            #Implement image loader here if needed
                    
         vocab = kwargs.pop('vocab')
         mode = kwargs.pop('mode', 'prefix')
@@ -189,7 +184,7 @@ class ClevrDataLoader(DataLoader):
         image_idx_start_from = kwargs.pop('image_idx_start_from', None)
         self.dataset = ClevrDataset(question_path, feature_path, vocab, mode,
                                     balanced_n=balanced_n, oversample=oversample,
-                                    index_list_path=index_list_path, image_h5=self.image_h5,
+                                    index_list_path=index_list_path, image_path=None,
                                     max_samples=max_samples, hr_path=hr_path,
                                     image_idx_start_from=image_idx_start_from)
         kwargs['collate_fn'] = self.clevr_collate
