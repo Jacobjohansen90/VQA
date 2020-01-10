@@ -307,7 +307,7 @@ if __name__ == '__main__':
                             programs_pred = program_generator.reinforce_sample(questions.cuda())
                         scores = execution_engine(feats.cuda(), programs_pred.cuda())
                         ee_optimizer.zero_grad()
-                        loss = loss_fn(scores, answers)
+                        loss = loss_fn(scores, answers.cuda())
                         loss.backward()
                         ee_loss.append(loss.item())
                         ee_optimizer.step()
