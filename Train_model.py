@@ -295,7 +295,8 @@ if __name__ == '__main__':
                                                  vocab, break_counter, best_pg_state, best_ee_state,
                                                  checkpoint_path)
                             pg_loss = []
-                            
+                            print(break_counter)
+                            print(args.break_after)
                             if break_counter >= args.break_after:
                                 cont = False
                                 break
