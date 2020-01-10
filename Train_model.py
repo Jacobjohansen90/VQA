@@ -198,7 +198,7 @@ if __name__ == '__main__':
             'batch_size':args.batch_size,
             'shuffle': args.shuffle_train_data,
             'pin_memory': True,
-            'max_samples': num_train_samples,
+            'max_samples': args.num_train_samples,
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
             'oversample':oversample,
