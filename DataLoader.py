@@ -108,7 +108,6 @@ class ClevrDataset(Dataset):
           
     def __getitem__(self, i):
         if self.eval:
-            print(self.max_samples)
             index = self.eval_index
             self.eval_index += 1
             if self.max_samples is not None:
