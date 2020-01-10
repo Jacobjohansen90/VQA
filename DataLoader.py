@@ -26,13 +26,14 @@ class ClevrDataset(Dataset):
     def __init__(self, question_path, feature_path, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list_path=None,
                  image_h5=None, max_samples=None, hr_path=None,
-                 image_idx_start_from=None):
+                 image_idx_start_from=None, pg_samples=None):
         mode_choices = ['prefix', 'postfix']
         if mode not in mode_choices:
             raise ValueError('Invalid mode "%s"' % mode)
     
         self.mode = mode
         self.max_samples = max_samples
+        self.pg_max_samples = pg_samples
         self.balanced_n = balanced_n
         self.oversample = oversample
         
@@ -57,10 +58,6 @@ class ClevrDataset(Dataset):
         self.programs = None
         if 'programs' in questions[()].keys():
             self.programs = dataset_to_tensor(questions[()]['programs'], mask)
-
-        self.eval_index = 0
-        self.eval = False
-        self.done = False
 
         if self.balanced_n is not None:
             if self.index_list is None:
@@ -177,7 +174,7 @@ class ClevrDataLoader(DataLoader):
         balanced_n = kwargs.pop('balanced_n', None)
         feature_path = kwargs.pop('feature_path')
         hr_path = kwargs.pop('high_reward_path', None)
-        
+        pg_samples = kwargs.pop('max_pg_samples', None)
         self.image_h5 = None
         if 'image_h5' in kwargs:
             image_h5_path = kwargs.pop('image_h5')
@@ -193,7 +190,8 @@ class ClevrDataLoader(DataLoader):
                                     balanced_n=balanced_n, oversample=oversample,
                                     index_list_path=index_list_path, image_h5=self.image_h5,
                                     max_samples=max_samples, hr_path=hr_path,
-                                    image_idx_start_from=image_idx_start_from)
+                                    image_idx_start_from=image_idx_start_from,
+                                    pg_samples=pg_samples)
         kwargs['collate_fn'] = self.clevr_collate
         super(ClevrDataLoader, self).__init__(self.dataset, **kwargs)
     
