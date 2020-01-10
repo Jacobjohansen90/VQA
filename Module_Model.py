@@ -234,6 +234,10 @@ class ModuleNet(nn.Module):
     
     def forward(self, x, program):
         N = x.size(0)
+        print(program.shape)
+        print(x.shape)
+        print(x)
+        print(program)
         assert N == len(program)
         
         feats = self.stem(x)
