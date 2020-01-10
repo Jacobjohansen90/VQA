@@ -67,9 +67,8 @@ class ClevrDataset(Dataset):
                 for index in self.index_list.keys():
                     indexs = random.sample(self.index_list[index], self.balanced_n)
                     self.sample_list.extend(indexs)
-                count = min(self.max_samples, self.pg_max_samples)
-                if count > len(self.sample_list):
-                    for _ in range(count - len(self.sample_list)):
+                if self.pg_max_samples > len(self.sample_list):
+                    for _ in range(self.pg_max_samples - len(self.sample_list)):
                         while True:
                             i = random.randint(0,len(self.all_questions)-1)
                             if i in self.sample_list:
