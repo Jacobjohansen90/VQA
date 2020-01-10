@@ -159,6 +159,8 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
             questions, _, feats, answers, programs, _, _, done, _, _ = batch
             mask = done == False
             scores = None
+            print(done)
+            print(mask)
             print(questions.shape)
             print(questions[mask].shape)
             programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
