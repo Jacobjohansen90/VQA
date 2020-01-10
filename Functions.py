@@ -153,27 +153,30 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     set_mode('eval', [program_generator, execution_engine])
     loader.eval_mode()
     num_correct, num_samples = 0,0
-    done = torch.zeros(1)
-    while done.sum() == 0:
-        questions, _, feats, answers, programs, _, _, done, _, _ = loader.batch()
-        if done.sum() != 0:
+    cont = True
+    while cont:
+        for batch in loader:
+            questions, _, feats, answers, programs, _, _, done, _, _ = batch
             mask = done == False
-        scores = None
-        programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
-        if model == 'PG':
-            I1 = (programs_pred[mask] != 0)
-            I2 = (programs[mask] != 0)
-            for i in range(programs_pred[mask].shape[0]):
-                num_samples += 1
-                if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
-                    if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
-                        num_correct += 1
-
-        else: 
-            scores = execution_engine(feats[mask].cuda(), programs_pred[mask])
-            _, preds = scores.data.cpu().max(1)
-            num_correct += (preds == answers[mask].squeeze(1)).sum()
-            num_samples += preds.size(0)
+            scores = None
+            programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
+            if model == 'PG':
+                I1 = (programs_pred[mask] != 0)
+                I2 = (programs[mask] != 0)
+                for i in range(programs_pred[mask].shape[0]):
+                    num_samples += 1
+                    if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
+                        if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
+                            num_correct += 1
+    
+            else: 
+                scores = execution_engine(feats[mask].cuda(), programs_pred[mask])
+                _, preds = scores.data.cpu().max(1)
+                num_correct += (preds == answers[mask].squeeze(1)).sum()
+                num_samples += preds.size(0)
+            if done.sum() != 0:
+                cont = False
+                break
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
