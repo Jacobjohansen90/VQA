@@ -274,8 +274,9 @@ if __name__ == '__main__':
         func.set_mode('train', [program_generator, execution_engine])
         
         while cont:
+            inner_cont = True
             if model_ == 'PG':
-                while True:
+                while inner_cont:
                     for batch in train_loader:
                         print(t)
                         t += 1
@@ -299,10 +300,11 @@ if __name__ == '__main__':
                             print(args.break_after)
                             if break_counter >= args.break_after:
                                 cont = False
+                                inner_cont = False
                                 break
                         
             elif model_ == 'EE':
-                while True:
+                while inner_cont:
                     for batch in train_loader:
                         t += 1
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
@@ -328,10 +330,11 @@ if __name__ == '__main__':
                             
                             if break_counter >= args.break_after:
                                 cont = False
+                                inner_cont = False
                                 break
 
             elif model_ == 'MAPO':
-                while True:
+                while inner_cont:
                     for batch in train_loader:
                         t += 1
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
@@ -418,5 +421,6 @@ if __name__ == '__main__':
                                 for p in processes:
                                     p.terminate()
                                 cont = False
+                                inner_cont = False
                                 break
     print('All models are done training')
