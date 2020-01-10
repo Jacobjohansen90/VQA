@@ -237,8 +237,6 @@ class ModuleNet(nn.Module):
         if N != len(program):
             print(program.shape)
             print(x.shape)
-            print(x)
-            print(program)
         assert N == len(program)
         
         feats = self.stem(x)
