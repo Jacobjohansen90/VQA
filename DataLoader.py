@@ -140,7 +140,7 @@ class ClevrDataset(Dataset):
         if self.train_loader:
             return(10**6)
             #Significant speed up, makes it impossible to track epochs and
-            #shuffle data properbly
+            #shuffle data properbly though.
         else:
             if self.max_samples is not None:
                 return self.max_samples
