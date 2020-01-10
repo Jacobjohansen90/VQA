@@ -225,8 +225,8 @@ class ClevrDataLoader(DataLoader):
         program_struct_batch = transposed[5]
         i = transposed[6]
         done = transposed[7]
-        programs = transposed[8]
-        I = transposed[9]
+        programs = default_collate(transposed[8])
+        I = default_collate(transposed[9])
         return [question_batch, image_batch, feat_batch, answer_batch, program_seq_batch, program_struct_batch, i, done, programs, I]
 
 
