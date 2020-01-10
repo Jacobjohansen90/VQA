@@ -11,7 +11,7 @@ import torch
 from LSTM_Model import Seq2Seq
 from Module_Model import ModuleNet
 from DataLoader import dataset_to_tensor
-import h5py
+import numpy as np
 import os
 import shutil
 
@@ -232,13 +232,13 @@ def checkpoint_func(args, model, program_generator, execution_engine,
 
 #MAPO Functions  
 def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
-    if args.train_questions + '_MAPO' not in os.listdir():
+    if args.train_questions.split('.')[0] + '_MAPO.npy' not in os.listdir():
         print('Copying questions for MAPO loader')
-        shutil.copyfile(args.train_questions, args.train_questions + '_MAPO') 
+        shutil.copyfile(args.train_questions, args.train_questions.split('.')[0] + '_MAPO.npy') 
 
-    q_path = args.train_questions+'_MAPO'    
-    question_h5 = h5py.File(q_path, 'r')
-    all_questions = dataset_to_tensor(question_h5, None)
+    q_path = args.train_questions.split('.')[0]+'_MAPO.npy'    
+    question = np.load(q_path, allow_pickle=True)
+    all_questions = question[()]['questions']
            
     for i in sample_list:
         if i in hr_list:
