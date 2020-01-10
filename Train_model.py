@@ -333,8 +333,8 @@ if __name__ == '__main__':
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
-                            print(programs.shape)
-                            if programs.shape(1) != 1 and programs[i] != programs[i]:
+                            print(programs[i].shape)
+                            if programs[i].shape(1) == 1 and programs[i] != programs[i]:
                                 continue
                             else:
                                 scores = execution_engine(feats[i].expand(len(programs[i])).cuda(),
