@@ -242,7 +242,6 @@ if __name__ == '__main__':
                 func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
             print('Making HR paths')
-            print('Using ,',torch.cuda.device_count(),' GPUs')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 

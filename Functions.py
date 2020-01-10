@@ -232,7 +232,7 @@ def checkpoint_func(args, model, program_generator, execution_engine,
 
 #MAPO Functions  
 def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
-    if args.train_questions_h5 + '_MAPO' not in os.listdir():
+    if args.train_questions + '_MAPO' not in os.listdir():
         print('Copying questions for MAPO loader')
         shutil.copyfile(args.train_questions, args.train_questions + '_MAPO') 
 
