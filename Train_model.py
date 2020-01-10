@@ -197,7 +197,7 @@ if __name__ == '__main__':
             'vocab':vocab,
             'batch_size':args.batch_size,
             'shuffle': args.shuffle_train_data,
-            'pin_memory': False,
+            'pin_memory': True,
             'max_samples': num_train_samples,
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
@@ -271,8 +271,8 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
-                        loss = program_generator(questions.cuda(), programs.cuda()).mean()
-                        #sum is needed for multi GPU, has no impact if 1 GPU
+                        loss = program_generator(questions, programs).mean()
+                        #mean is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
                         pg_optimizer.step()
