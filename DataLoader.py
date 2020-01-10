@@ -144,7 +144,7 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        return 10**9
+        return 10**6
     
     def eval_mode(self):
         self.eval = True
