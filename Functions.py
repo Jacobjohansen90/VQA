@@ -260,8 +260,8 @@ def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
     done = False
-    while not done:
-        q, _, feat, ans, _, _, j, done, _, _ = loader.batch()
+    for batch in loader:
+        q, _, feat, ans, _, _, j, done, _, _ = batch
         program_pred = pg.reinforce_sample(q.cuda())
         scores = ee(feat.cuda(), program_pred)
         _, preds = scores.data.cpu().max(1)
