@@ -326,7 +326,7 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:
                         t += 1
-                        questions, _, feats, answers, _, _, indexs, _, programs, I = batch
+                        questions, _, feats, answers, _, _, indexs, _, programs, I.squeeze() = batch
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
