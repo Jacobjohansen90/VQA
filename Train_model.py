@@ -344,7 +344,7 @@ if __name__ == '__main__':
                                     I[i] = True
                                     programs[i] = programs[i][I_test][0] 
                                     #0 is most likely program sequence ,-1 is least
-                        func.set_mode('train', execution_engine)
+                        func.set_mode('train', [execution_engine])
                         
                         #Force programs if no high reward path
                         if args.multi_GPU and torch.cuda.device_count() > 1:
