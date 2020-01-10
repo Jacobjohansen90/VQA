@@ -138,9 +138,6 @@ class ClevrDataset(Dataset):
             elif self.mode == 'postfix':
                 program_json = P.postfix_to_list(program_json_seq)
         program, I = self.get_program(question)
-        print(question.shape)
-        print(answer.shape)
-        print(program_seq.shape)
         return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
 
 
