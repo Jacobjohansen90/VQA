@@ -163,13 +163,13 @@ class ClevrDataset(Dataset):
                         p_name = os.listdir(self.hr_path + q_name)[i]
                         program = torch.load(self.hr_path + q_name + '/' + p_name)
                         programs[i] = program
-                    return programs, False
+                    return programs, torch.zeros(1)
                 else:
                     p_name = os.listdir(self.hr_path + q_name)[0]
                     program = torch.load(self.hr_path + q_name + '/' + p_name)
-                    return program, True
+                    return program, torch.ones(1)
         else:
-            return None, False
+            return None, torch.zeros(1)
     
 class ClevrDataLoader(DataLoader):
     def __init__(self, **kwargs):

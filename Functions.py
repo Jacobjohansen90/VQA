@@ -157,13 +157,16 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     while cont:
         for batch in loader:
             questions, _, feats, answers, programs, _, _, done, _, _ = batch
-            mask = done == False
+            mask = done == 0
             scores = None
             print(done)
             print(mask)
             print(questions.shape)
             print(questions[mask].shape)
-            programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
+            if args.multi_GPU and torch.cuda.device_count() > 1:
+                programs_pred = program_generator.module.reinforce_sample(questions[mask].cuda())
+            else:
+                programs_pred = program_generator.reinforce_sample(questions[mask].cuda())
             if model == 'PG':
                 I1 = (programs_pred[mask] != 0)
                 I2 = (programs[mask] != 0)
