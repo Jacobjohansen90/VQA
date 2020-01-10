@@ -127,6 +127,16 @@ if __name__ == '__main__':
 
     val_loader = ClevrDataLoader(**val_loader_kwargs)
     
+    train_acc_kwargs = {
+            'question_path': args.train_questions,
+            'feature_path': args.train_features,
+            'vocab': vocab,
+            'batch_size': args.batch_size,
+            'max_samples': args.num_train_samples,
+            'num_workers': args.loader_num_workers}
+    
+    train_acc_loader = ClevrDataLoader(**train_acc_kwargs)
+    
     if args.model_type == 'all':
         model = ['PG', 'EE', 'MAPO']
     else:
@@ -280,7 +290,7 @@ if __name__ == '__main__':
                         if t % args.checkpoint_every == 0:
                             stats, break_counter, best_pg_state, best_ee_state =\
                             func.checkpoint_func(args, model_, program_generator, execution_engine, 
-                                                 train_loader, val_loader, t, epoch, stats,
+                                                 train_acc_loader, val_loader, t, epoch, stats,
                                                  model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                                  vocab, break_counter, best_pg_state, best_ee_state,
                                                  checkpoint_path)
@@ -309,7 +319,7 @@ if __name__ == '__main__':
                         if t % args.checkpoint_every == 0:
                             stats, break_counter, best_pg_state, best_ee_state =\
                             func.checkpoint_func(args, model_, program_generator, execution_engine, 
-                                                 train_loader, val_loader, t, epoch, stats,
+                                                 train_acc_loader, val_loader, t, epoch, stats,
                                                  model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                                  vocab, break_counter, best_pg_state, best_ee_state, 
                                                  checkpoint_path)
@@ -397,7 +407,7 @@ if __name__ == '__main__':
                         if t % args.checkpoint_every == 0:
                             stats, break_counter, best_pg_state, best_ee_state =\
                             func.checkpoint_func(args, model_, program_generator, execution_engine, 
-                                                 train_loader, val_loader, t, epoch, stats,
+                                                 train_acc_loader, val_loader, t, epoch, stats,
                                                  model_name, pg_loss, ee_loss, pg_kwargs, ee_kwargs, 
                                                  vocab, break_counter, best_pg_state, best_ee_state,
                                                  checkpoint_path)

@@ -107,18 +107,7 @@ class ClevrDataset(Dataset):
             mask = all_image_idxs >= image_idx_start_from
           
     def __getitem__(self, i):
-        if self.eval:
-            index = self.eval_index
-            self.eval_index += 1
-            print(i)
-            if self.max_samples is not None:
-                if self.eval_index == self.max_samples:
-                    print(self.eval_index)
-                    self.done = True
-            elif self.eval_index == len(self.all_questions):
-                self.done = True
-        else:
-            index = self.sample_list[i%len(self.sample_list)] 
+        index = self.sample_list[i%len(self.sample_list)] 
         question = self.all_questions[index]
         answer = self.answers[index]
         image_idx = self.image_idxs[index]
@@ -149,12 +138,9 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        return 10**6
+        return self.max_samples
     
-    def eval_mode(self):
-        self.eval = True
-        self.eval_index = 0
-        self.done = False
+
         
     def get_program(self, question):
         q_name = '-'.join(str(int(e)) for e in question if e != 0)
@@ -218,8 +204,7 @@ class ClevrDataLoader(DataLoader):
     def __enter__(self):
         return self
     
-    def eval_mode(self):
-        self.dataset.eval_mode()
+
             
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()

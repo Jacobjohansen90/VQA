@@ -155,36 +155,30 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
     num_correct, num_samples = 0,0
     cont = True
     t = 0
-    while cont:
-        for batch in loader:
-            t += 1
-#            print(t)
-            questions, _, feats, answers, programs, _, _, done, _, _ = batch
-            mask = -1
-            if True in done:
-                mask = done.index(True)
-            scores = None
-            if args.multi_GPU and torch.cuda.device_count() > 1:
-                programs_pred = program_generator.module.reinforce_sample(questions[:mask].cuda())
-            else:
-                programs_pred = program_generator.reinforce_sample(questions[:mask].cuda())
-            if model == 'PG':
-                I1 = (programs_pred[:mask] != 0)
-                I2 = (programs[:mask] != 0)
-                for i in range(programs_pred[:mask].shape[0]):
-                    num_samples += 1
-                    if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
-                        if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
-                            num_correct += 1
-    
-            else: 
-                scores = execution_engine(feats[:mask].cuda(), programs_pred[:mask])
-                _, preds = scores.data.cpu().max(1)
-                num_correct += (preds == answers[:mask].squeeze(1)).sum()
-                num_samples += preds.size(0)
-            if True in done:
-                cont = False
-                break
+    for batch in loader:
+        t += 1
+        print(t)
+        questions, _, feats, answers, programs, _, _, done, _, _ = batch
+        mask = -1
+        scores = None
+        if args.multi_GPU and torch.cuda.device_count() > 1:
+            programs_pred = program_generator.module.reinforce_sample(questions.cuda())
+        else:
+            programs_pred = program_generator.reinforce_sample(questions.cuda())
+        if model == 'PG':
+            I1 = (programs_pred != 0)
+            I2 = (programs != 0)
+            for i in range(programs_pred.shape[0]):
+                num_samples += 1
+                if len(programs_pred[i][I1[i]].cpu()) == len(programs[i][I2[i]][1:]):
+                    if all(programs_pred[i][I1[i]].cpu() == programs[i][I2[i]][1:]):
+                        num_correct += 1
+
+        else: 
+            scores = execution_engine(feats.cuda(), programs_pred.cuda())
+            _, preds = scores.data.cpu().max(1)
+            num_correct += (preds == answers.squeeze(1)).sum()
+            num_samples += preds.size(0)
     set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
