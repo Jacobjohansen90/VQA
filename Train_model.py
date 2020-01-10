@@ -191,6 +191,10 @@ if __name__ == '__main__':
         #Setup loss and train loader
         loss_fn = torch.nn.CrossEntropyLoss().cuda()      
         
+        if model_ == 'PG':
+            max_samples = args.num_PG_samples
+        else:
+            max_samples = args.num_train_samples
 
                 
         train_loader_kwargs = {
@@ -200,8 +204,7 @@ if __name__ == '__main__':
             'batch_size':args.batch_size,
             'shuffle': args.shuffle_train_data,
             'pin_memory': True,
-            'max_samples': args.num_train_samples,
-            'max_pg_samples': args.num_PG_samples,
+            'max_samples': max_samples,
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
             'oversample':oversample,

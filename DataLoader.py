@@ -26,14 +26,13 @@ class ClevrDataset(Dataset):
     def __init__(self, question_path, feature_path, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list_path=None,
                  image_h5=None, max_samples=None, hr_path=None,
-                 image_idx_start_from=None, pg_samples=None):
+                 image_idx_start_from=None):
         mode_choices = ['prefix', 'postfix']
         if mode not in mode_choices:
             raise ValueError('Invalid mode "%s"' % mode)
     
         self.mode = mode
         self.max_samples = max_samples
-        self.pg_max_samples = pg_samples
         self.balanced_n = balanced_n
         self.oversample = oversample
         
@@ -48,7 +47,7 @@ class ClevrDataset(Dataset):
         
         self.feature_path = feature_path
         self.hr_path = hr_path
-        
+        self.done = 0 #Not in use
         questions = np.load(question_path, allow_pickle=True)
         mask = None
 
@@ -67,8 +66,8 @@ class ClevrDataset(Dataset):
                 for index in self.index_list.keys():
                     indexs = random.sample(self.index_list[index], self.balanced_n)
                     self.sample_list.extend(indexs)
-                if self.pg_max_samples > len(self.sample_list):
-                    for _ in range(self.pg_max_samples - len(self.sample_list)):
+                if self.max_samples > len(self.sample_list):
+                    for _ in range(self.max_samples - len(self.sample_list)):
                         while True:
                             i = random.randint(0,len(self.all_questions)-1)
                             if i in self.sample_list:
@@ -136,7 +135,10 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        return self.max_samples
+        if self.max_samples is not None:
+            return self.max_samples
+        else:
+            return len(self.all_questions)
     
 
         
