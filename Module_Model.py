@@ -234,9 +234,6 @@ class ModuleNet(nn.Module):
     
     def forward(self, x, program):
         N = x.size(0)
-        if N != len(program):
-            print(program.shape)
-            print(x.shape)
         assert N == len(program)
         
         feats = self.stem(x)
@@ -245,8 +242,6 @@ class ModuleNet(nn.Module):
         elif type(program) is torch.Tensor and program.dim() == 2:
             final_module_outputs = self.forward_modules_ints(feats, program)
         else:
-            print(program)
-            print(program.shape)
             raise ValueError('Unregonized program format')
             
         out = self.classifier(final_module_outputs)

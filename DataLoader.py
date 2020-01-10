@@ -138,7 +138,7 @@ class ClevrDataset(Dataset):
     
     def __len__(self):
         if self.train_loader:
-            return(10**4)
+            return(10**6)
             #Significant speed up, makes it impossible to track epochs and
             #shuffle data properbly though.
         else:
