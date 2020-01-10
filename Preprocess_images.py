@@ -16,7 +16,7 @@ from Preprocess_funcs import build_model, run_batch
 ##Args
 
 feature_model = 'resnet101'
-split = 'all'
+split = 'train'
 max_images = None
 model_ = 'resnet101'
 model_stage = 3
