@@ -350,7 +350,7 @@ if __name__ == '__main__':
                         func.set_mode('train', execution_engine)
                         
                         #Force programs if no high reward path
-                        if args.multi_GPU:
+                        if args.multi_GPU and torch.cuda.device_count() > 1:
                             programs[~I] = program_generator.module.reinforce_sample(questions[~I].cuda())
                         else:
                             programs[~I] = program_generator.reinforce_sample(questions[~I].cuda())
