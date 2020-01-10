@@ -141,10 +141,10 @@ if __name__ == '__main__':
         best_pg_state, best_ee_state = None, None
         
         #Set amount of training samples
-        if model_ == 'PG':
-            num_train_samples = args.num_PG_samples
-        else:
-            num_train_samples = args.num_train_samples
+#        if model_ == 'PG':
+#            num_train_samples = args.num_PG_samples
+#        else:
+#            num_train_samples = args.num_train_samples
         
         #Load previous trained models if needed
         if args.model_type == 'all':        
