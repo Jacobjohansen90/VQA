@@ -259,7 +259,6 @@ def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
             
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
-    loader.eval_mode()
     done = False
     while not done:
         q, _, feat, ans, _, _, j, done, _, _ = loader.batch()
