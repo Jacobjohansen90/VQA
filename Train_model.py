@@ -17,7 +17,7 @@ from MAPO_workers import MAPO_CPU
 
 #%% Setup Params
 if __name__ == '__main__':
-    mp.set_start_method('spawn')
+    mp.set_start_method('fork')
 
     parser = argparse.ArgumentParser()
 
