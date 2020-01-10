@@ -26,7 +26,7 @@ class ClevrDataset(Dataset):
     def __init__(self, question_path, feature_path, vocab, mode='prefix', 
                  balanced_n=None, oversample=None, index_list_path=None,
                  image_path=None, max_samples=None, hr_path=None,
-                 image_idx_start_from=None):
+                 image_idx_start_from=None, train_loader=False):
         mode_choices = ['prefix', 'postfix']
         if mode not in mode_choices:
             raise ValueError('Invalid mode "%s"' % mode)
@@ -35,6 +35,8 @@ class ClevrDataset(Dataset):
         self.max_samples = max_samples
         self.balanced_n = balanced_n
         self.oversample = oversample
+        
+        self.train_loader = train_loader
         
         self.index_list = None
         if index_list_path is not None:
@@ -135,10 +137,15 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        if self.max_samples is not None:
-            return self.max_samples
+        if self.train_loader:
+            return(10**6)
+            #Significant speed up, makes it impossible to track epochs and
+            #shuffle data properbly
         else:
-            return len(self.all_questions)
+            if self.max_samples is not None:
+                return self.max_samples
+            else:
+                return len(self.all_questions)
     
 
         
@@ -175,7 +182,7 @@ class ClevrDataLoader(DataLoader):
         balanced_n = kwargs.pop('balanced_n', None)
         feature_path = kwargs.pop('feature_path')
         hr_path = kwargs.pop('high_reward_path', None)
-                   
+        train_loader = kwargs.pop('train_loader', False)
         vocab = kwargs.pop('vocab')
         mode = kwargs.pop('mode', 'prefix')
         
@@ -186,7 +193,8 @@ class ClevrDataLoader(DataLoader):
                                     balanced_n=balanced_n, oversample=oversample,
                                     index_list_path=index_list_path, image_path=None,
                                     max_samples=max_samples, hr_path=hr_path,
-                                    image_idx_start_from=image_idx_start_from)
+                                    image_idx_start_from=image_idx_start_from,
+                                    train_loader=train_loader)
         kwargs['collate_fn'] = self.clevr_collate
         super(ClevrDataLoader, self).__init__(self.dataset, **kwargs)
     
