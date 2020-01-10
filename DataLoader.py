@@ -107,40 +107,40 @@ class ClevrDataset(Dataset):
             mask = all_image_idxs >= image_idx_start_from
           
     def __getitem__(self, i):
-        if self.eval:
-            index = self.eval_index
-            self.eval_index += 1
-            if self.eval_index == len(self.all_questions):
-                self.done = True
-        else:
-            index = self.sample_list[i] 
-        question = self.all_questions[index]
-        answer = self.answers[index]
-        image_idx = self.image_idxs[index]
-        if self.programs is not None:
-            program_seq = self.programs[index]
         
-        feats = torch.load(self.feature_path + image_idx)
-        feats = torch.FloatTensor(feats)
-#        feats = torch.zeros((1024,14,14))
-        
-        image = None
-        #Implement image loader here if needed
-        if program_seq is not None:
-            program_json_seq = []
-            for fn_idx in program_seq:
-                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
-                if fn_str == '<START>' or fn_str == '<END>':
-                    continue
-                fn = P.str_to_function(fn_str)
-                program_json_seq.append(fn)
-            if self.mode == 'prefix':
-                program_json = P.prefix_to_list(program_json_seq)
-            elif self.mode == 'postfix':
-                program_json = P.postfix_to_list(program_json_seq)
+        return (torch.zeros(46), None, None, None, torch.zeros(46), torch.zeros(46), None, None, None, None)
+#        if self.eval:
+#            index = self.eval_index
+#            self.eval_index += 1
+#            if self.eval_index == len(self.all_questions):
+#                self.done = True
+#        else:
+#            index = self.sample_list[i] 
+#        question = self.all_questions[index]
+#        answer = self.answers[index]
+#        image_idx = self.image_idxs[index]
+#        if self.programs is not None:
+#            program_seq = self.programs[index]
+#        
+#        feats = torch.load(self.feature_path + image_idx)
+#        feats = torch.FloatTensor(feats)
+#        
+#        image = None
+#        #Implement image loader here if needed
+#        if program_seq is not None:
+#            program_json_seq = []
+#            for fn_idx in program_seq:
+#                fn_str = self.vocab['program_idx_to_token'][fn_idx.item()]
+#                if fn_str == '<START>' or fn_str == '<END>':
+#                    continue
+#                fn = P.str_to_function(fn_str)
+#                program_json_seq.append(fn)
+#            if self.mode == 'prefix':
+#                program_json = P.prefix_to_list(program_json_seq)
+#            elif self.mode == 'postfix':
+#                program_json = P.postfix_to_list(program_json_seq)
 #        program, I = self.get_program(question)
-        program, I = None, None
-        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
+#        return (question, image, feats, answer, program_seq, program_json, index, self.done, program, I)
 
 
 
