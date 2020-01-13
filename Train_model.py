@@ -399,7 +399,10 @@ if __name__ == '__main__':
                                 centered_reward = raw_reward - reward_moving_avg
                                 
                                 pg_optimizer.zero_grad()
-                                program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
+                                if args.multi_GPU and torch.cuda.device_count() > 1:
+                                    program_generator.module.reinforce_backward(centered_reward.cuda(), args.alpha)
+                                else:
+                                    program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
                                 pg_optimizer.step()
                         
                                                                                   
