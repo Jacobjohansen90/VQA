@@ -230,14 +230,14 @@ if __name__ == '__main__':
             change_que = mp.Queue()
             sample_que = mp.Queue()
             
-#            for cpu in range(cpu_count-args.loader_num_workers-1):
-#                p = mp.Process(target=MAPO_CPU, args=(args, program_generator.cpu(),  
-#                                                      sample_que, cpu))
-#         
-#                p.start() 
-#                processes.append(p)
-#                if args.info:
-#                    print('MAPO worker %s spawned' % str(cpu))
+            for cpu in range(cpu_count-args.loader_num_workers-1):
+                p = mp.Process(target=MAPO_CPU, args=(args, program_generator.cpu(),  
+                                                      sample_que, cpu))
+         
+                p.start() 
+                processes.append(p)
+                if args.info:
+                    print('MAPO worker %s spawned' % str(cpu))
             #Set model to GPU            
             program_generator.cuda()
 
