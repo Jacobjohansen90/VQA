@@ -334,11 +334,9 @@ if __name__ == '__main__':
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
-                            if programs[i].dim() == 1 and programs[i][0] != programs[i][0]:
+                            if programs[i].dim() == 1 and programs[i][0] == -1:
                                 continue
                             else:
-                                print(programs)
-                                print(programs[i])
                                 scores = execution_engine(feats[i].unsqueeze(0).expand(len(programs[i]),1024,14,14).cuda(),
                                                           programs[i].cuda())
                                 _, preds = scores.data.cpu.max(1)
