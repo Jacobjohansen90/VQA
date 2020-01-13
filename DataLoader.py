@@ -138,7 +138,7 @@ class ClevrDataset(Dataset):
     
     def __len__(self):
         if self.train_loader:
-            return 10**7
+            return 10**8
         else:
             if self.max_samples is not None:
                 return self.max_samples
