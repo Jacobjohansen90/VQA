@@ -43,8 +43,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
-    parser.add_argument('--L2_pg', default=0.001, type=float)
-    parser.add_argument('--L2_ee', default=0.0001, type=float)
+    parser.add_argument('--L2_pg', default=0.0001, type=float)
+    parser.add_argument('--L2_ee', default=0.00001, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
