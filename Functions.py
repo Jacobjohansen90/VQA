@@ -263,9 +263,9 @@ def make_HR_paths(args, pg, ee, loader):
     for batch in loader:
         q, _, feat, ans, _, _, j, done, _, _ = batch
         if args.multi_GPU and torch.cuda.device_count() > 1:
-            program_pred = pg.module.sample(q.cuda())
+            program_pred = pg.module.reinforce_sample(q.cuda())
         else:
-            program_pred = pg.sample(q.cuda())
+            program_pred = pg.reinforce_sample(q.cuda())
         scores = ee(feat.cuda(), program_pred)
         _, preds = scores.data.cpu().max(1)
         for i in range(preds.size(0)):
