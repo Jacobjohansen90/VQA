@@ -246,7 +246,6 @@ if __name__ == '__main__':
             func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
             print('Making HR paths')
-            print(len(train_acc_loader))
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_acc_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 
@@ -370,8 +369,6 @@ if __name__ == '__main__':
 
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
-                        print(I_.shape)
-                        print(I.shape)
                         if (I_ != I).sum() != I.shape[0]:
                             #These indexes have become negative
                             if ((I != I_) == I).sum() != 0:
