@@ -273,16 +273,12 @@ if __name__ == '__main__':
         while cont:
             inner_cont = True
             if model_ == 'PG':
-                t_ = time.time()
                 while inner_cont:
                     for batch in train_loader:
-                        print('batch: ', t_ - time.time())
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
-                        t_ = time.time()
                         loss = program_generator(questions.cuda(), programs.cuda()).mean()
-                        print('PG: ', t_ - time.time())
                         #mean is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
