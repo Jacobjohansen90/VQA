@@ -257,7 +257,6 @@ if __name__ == '__main__':
                 print('Clevr dataloader spawned')
             
             #Keep track of novel path tries
-            novel_counter = torch.zeros(len(train_loader)*args.batch_size)
         stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
                  'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}
@@ -373,7 +372,7 @@ if __name__ == '__main__':
                         I_ = (preds==answers)
                         print(I_.shape)
                         print(I.shape)
-                        if I_ != I:
+                        if (I_ != I).sum() != I.shape[0]:
                             #These indexes have become negative
                             if ((I != I_) == I).sum() != 0:
                                 change_indexs = indexs[(I != I_) == I] 
