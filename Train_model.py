@@ -11,7 +11,6 @@ import argparse
 from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
-import time
 #TODO: image idx start from / mask does not work in dataloader
 #TODO: RL rewards are not recorded
 

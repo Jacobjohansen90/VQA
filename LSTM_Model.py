@@ -41,6 +41,8 @@ class Seq2Seq(nn.Module):
         self.END = end_token
         self.multinomial_outputs = None
         self.max_length = max_length
+        self.hidden_dim = hidden_dim
+        self.rnn_layers = rnn_num_layers
         
     def expand_encoder_vocab(self, token_to_idx, word2vec=None, std=0.01):
         expand_embedding_vocab(self.encoder_embed, token_to_idx,
@@ -110,47 +112,72 @@ class Seq2Seq(nn.Module):
         output_logprobs = self.decoder_linear(rnn_output_2d).view(N, T_out, V_out)
         return output_logprobs, ht, ct
     
-    def reinforce_novel_sample(self, x, bloom_filter, temperature=1.0, argmax=False):
+    def reinforce_MAPO_samples(self, x, bloom_filter, temperature=1.0, 
+                               argmax=False, non_bf_paths=5, paths=20):
         N, T = x.size(0), self.max_length
         assert N == 1       
         encoded = self.encoder(x)
-        y = torch.LongTensor(N, T).fill_(self.NULL)
         cur_input = Variable(x.data.new(N,1).fill_(self.START))
-        h, c = None, None
-        t = 0
-        while t < T-1:
-            logprobs, h, c = self.decoder(encoded, cur_input, h0=h, c0=c)
-            logprobs = logprobs / temperature
-            probs = F.softmax(logprobs.view(N, -1), dim=1)
-            m = torch.distributions.Categorical(probs)
-            if argmax:
-                _, cur_output = probs.max(1)
+        first = True
+        self.entropy = torch.zeros(T)
+        self.probs = torch.zeros(T, 44)
+        self.path = torch.zeros(T)
+        self.h = torch.zeros(self.rnn_layers,T,self.hidden_dim)
+        self.c = torch.zeros(self.rnn_layers,T,self.hidden_dim)
+        y = torch.LongTensor(N, T).fill_(self.NULL)
+        for i in range(paths):
+            if first:
+                t = 0
             else:
-                cur_output = m.sample()
-            y[:, t] = cur_output.data.cpu()
-            prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
-            while bloom_filter.check(prg_tmp):
-                probs[:,cur_output] = 0
-                if torch.sum(probs) <= 0:
-                    break
+                t = self.entropy.argmax()
+                idx = self.MAPO_m[t].argmax()
+                self.MAPO_m[t][idx] = 0
+                y[:,t] = self.probs[t].argmax()
+                y[:,t+1:] = self.NULL                
+            while t < T-1:
+                if first:
+                    logprobs, self.h[:,t:t+1,:], self.c[:,t:t+1,:] = \
+                    self.decoder(encoded, cur_input, h0=None, c0=None)
+                else:
+                    logprobs, self.h[:,t:t+1,:], self.c[:,t:t+1,:] = \
+                    self.decoder(encoded, self.path[t], self.h[t], self.c[t])
+                logprobs = logprobs / temperature
+                probs = F.softmax(logprobs.view(N,-1), dim=1)
                 m = torch.distributions.Categorical(probs)
+                self.entropy[t] = m.entropy().item()
+                self.probs[t] = probs.item()
                 if argmax:
-                    _, cur_output = probs.max(1) 
+                    cur_output = probs.argmax(1)
                 else:
                     cur_output = m.sample()
                 y[:, t] = cur_output.data.cpu()
                 prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
-            if bloom_filter.check(prg_tmp) == 0:
-                t += 1
-                cur_input = cur_output.unsqueeze(1)
-            else:
-                prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
-                bloom_filter.add(prg_tmp)
-                t -= 1
-            if cur_output.data.cpu() == self.END:
-                bloom_filter.add(prg_tmp)
-                break
-        return Variable(y.type_as(x.data)), bloom_filter, prg_tmp 
+                if i >= non_bf_paths:
+                    while bloom_filter.check(prg_tmp):
+                        probs[:, cur_output] = 0
+                        if torch.sum(probs) <= 0:
+                            
+                            break
+                        m = torch.distributions.Categorical(probs)
+                        if argmax:
+                            cur_output = probs.argmax(1)
+                        else:
+                            cur_output = m.sample()
+                        y[:, t] = cur_output.data.cpu()
+                        prg_tmp = '-'.join(str(e) for e in y[0,:t+1].tolist())
+                if bloom_filter.check(prg_tmp) == 0 or i < non_bf_paths:
+                    t += 1
+                    cur_input = cur_output.unsqueeze(1)
+                    probs[:, cur_output] = 0
+                else:
+                    prg_tmp = '-'.join(str(e) for e in y[0,:t].tolist())
+                    bloom_filter.add(prg_tmp)
+                    t = self.entropy.argmax()
+                if cur_output.data.cpu() == self.END:
+                    bloom_filter.add(prg_tmp)
+                    break
+            return Variable(y.type_as(x.data)), bloom_filter, prg_tmp
+
                
     def program_to_probs(self, questions, program_preds, temperature):
         N = questions.size(0)
