@@ -214,8 +214,7 @@ if __name__ == '__main__':
             'num_workers': args.loader_num_workers}
     
         train_acc_loader = ClevrDataLoader(**train_acc_kwargs)
-        
-        
+           
         if model_ == 'MAPO':
                                  
             #Spawn MAPO workers and dataloader    
@@ -247,10 +246,11 @@ if __name__ == '__main__':
             func.clean_up(args)
             func.set_mode('eval', [program_generator, execution_engine])      
             print('Making HR paths')
-            hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_loader)            
+            print(len(train_acc_loader))
+            hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_acc_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 
-                                                          train_loader.dataset.sample_list))
+                                                          train_acc_loader.dataset.sample_list))
             p.start()
             processes.append(p)            
             if args.info:
