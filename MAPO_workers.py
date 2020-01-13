@@ -44,6 +44,4 @@ def MAPO_CPU(args, pg, sample_que, number):
                                                                            temperature=args.temperature, 
                                                                            argmax=args.MAPO_sample_argmax)
             torch.save(program_pred, directory + program_name+'.pt')
-        print('saving bf filter')
-        print(bf_path)
         bf.export(bf_path)             

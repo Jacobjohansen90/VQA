@@ -358,14 +358,12 @@ if __name__ == '__main__':
                         
                         scores = execution_engine(feats.cuda(), programs.cuda())
                         _, preds = scores.data.cpu().max(1)
-                        print('check 3')
                         #Train EE with positive and negative examples
                         ee_optimizer.zero_grad()
                         loss = loss_fn(scores, answers.cuda())
                         loss.backward()
                         ee_optimizer.step()
                         ee_loss.append(loss.item())
-                        print('check 4')
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
                         if (I_ != I).sum() != I.shape[0]:
@@ -382,23 +380,27 @@ if __name__ == '__main__':
                                 change_programs = programs[(I_ == True)][I[I_ == True] != True]
                                 change_que.put((change_indexs, change_programs, 'positive'))
                                 I[I_ == True] = True
-                        print('check 5')
                         #PG positive examples training using backprop
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                         loss.backward()
                         pg_optimizer.step()
                         pg_loss.append(loss.item())
+                        print('check 5')
                         
                         #PG negative examples training using RL
                         if args.pg_RL:
+                            print('check 6')
                             raw_reward = (preds == answers).float()
                             reward_moving_avg *= args.reward_decay
                             reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
                             centered_reward = raw_reward - reward_moving_avg
-                                                    
+                            print('check 7')
+                            
                             pg_optimizer.zero_grad()
+                            print('check 8')
                             program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
+                            print('check 9')
                             pg_optimizer.step()
                         
                                                                                   
