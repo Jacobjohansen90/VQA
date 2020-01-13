@@ -35,9 +35,14 @@ def MAPO_CPU(args, pg, sample_que, number):
                      false_positive_rate=args.bf_false_pos_rate)
 
         for _ in range(args.MAPO_programs_pr_pass):
-            program_pred, bf, program_name = pg.reinforce_novel_sample(question, bf, 
-                                                                       temperature=args.temperature, 
-                                                                       argmax=args.MAPO_sample_argmax)
+            if args.multi_GPU and torch.cuda.device_count() > 1:
+                program_pred, bf, program_name = pg.module.reinforce_novel_sample(
+                        question, bf, temperature=args.temperature, argmax=
+                        args.MAPO_sample_argmax)
+            else:
+                program_pred, bf, program_name = pg.reinforce_novel_sample(question, bf, 
+                                                                           temperature=args.temperature, 
+                                                                           argmax=args.MAPO_sample_argmax)
             torch.save(program_pred, directory + program_name+'.pt')
         print('saving bf filter')
         print(bf_path)
