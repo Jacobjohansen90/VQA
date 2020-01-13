@@ -200,8 +200,8 @@ if __name__ == '__main__':
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
             'oversample':oversample,
-            'path_to_index': args.path_to_index_file,
-            'train_loader': True}
+            'path_to_index': args.path_to_index_file}#,
+#            'train_loader': True}
         
         train_loader = ClevrDataLoader(**train_loader_kwargs)    
          
@@ -273,12 +273,16 @@ if __name__ == '__main__':
         while cont:
             inner_cont = True
             if model_ == 'PG':
+                t_ = time.time()
                 while inner_cont:
                     for batch in train_loader:
+                        print('batch: ', t_ - time.time())
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
+                        t_ = time.time()
                         loss = program_generator(questions.cuda(), programs.cuda()).mean()
+                        print('PG: ', t_ - time.time())
                         #mean is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
