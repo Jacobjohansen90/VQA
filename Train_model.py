@@ -331,6 +331,7 @@ if __name__ == '__main__':
                         t += 1
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         I = I.squeeze()
+                        programs = programs.cuda()
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
