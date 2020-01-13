@@ -11,6 +11,7 @@ import argparse
 from DataLoader import ClevrDataLoader
 import torch.multiprocessing as mp
 from MAPO_workers import MAPO_CPU
+import time
 #TODO: image idx start from / mask does not work in dataloader
 #TODO: RL rewards are not recorded
 
@@ -19,7 +20,7 @@ if __name__ == '__main__':
     mp.set_start_method('spawn')
 
     parser = argparse.ArgumentParser()
-
+    
     parser.add_argument('--multi_GPU', default=True) #Use all avalaible GPUs?
     parser.add_argument('--info', default=False)
     #Do you want all info or minimal?
@@ -271,12 +272,16 @@ if __name__ == '__main__':
         while cont:
             inner_cont = True
             if model_ == 'PG':
+                t_ = time.time()
                 while inner_cont:
                     for batch in train_loader:
+                        print('batch: ', t_ - time.time())
                         t += 1
                         questions, _, feats, answers, programs, _, _, _, _, _ = batch
                         pg_optimizer.zero_grad()
+                        t_ = time.time()
                         loss = program_generator(questions.cuda(), programs.cuda()).mean()
+                        print('PG: ', t_ - time.time())
                         #mean is needed for multi GPU, has no impact if 1 GPU
                         loss.backward() 
                         pg_loss.append(loss.item())
@@ -327,7 +332,7 @@ if __name__ == '__main__':
 
             elif model_ == 'MAPO':
                 while inner_cont:
-                    for batch in train_loader:
+                    for batch in train_loader:                        
                         t += 1
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         I = I.squeeze()
