@@ -137,15 +137,10 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        if self.train_loader:
-            return(10**6)
-            #Significant speed up, makes it impossible to track epochs and
-            #shuffle data properbly though.
+        if self.max_samples is not None:
+            return self.max_samples
         else:
-            if self.max_samples is not None:
-                return self.max_samples
-            else:
-                return len(self.all_questions)
+            return len(self.all_questions)
     
 
         
@@ -167,7 +162,7 @@ class ClevrDataset(Dataset):
                     program = torch.load(self.hr_path + q_name + '/' + p_name)
                     return program, torch.tensor([True])
         else:
-            return torch.Tensor([float('nan')]*30), torch.tensor([False])
+            return torch.Tensor([float('nan')]*30).long(), torch.tensor([False])
     
 class ClevrDataLoader(DataLoader):
     def __init__(self, **kwargs):
