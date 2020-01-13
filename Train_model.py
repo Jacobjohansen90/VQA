@@ -230,17 +230,16 @@ if __name__ == '__main__':
             change_que = mp.Queue()
             sample_que = mp.Queue()
             
-            for cpu in range(cpu_count-args.loader_num_workers-1):
-                p = mp.Process(target=MAPO_CPU, args=(args, program_generator.cpu(),  
-                                                      sample_que, cpu))
-         
-                p.start() 
-                processes.append(p)
-                if args.info:
-                    print('MAPO worker %s spawned' % str(cpu))
+#            for cpu in range(cpu_count-args.loader_num_workers-1):
+#                p = mp.Process(target=MAPO_CPU, args=(args, program_generator.cpu(),  
+#                                                      sample_que, cpu))
+#         
+#                p.start() 
+#                processes.append(p)
+#                if args.info:
+#                    print('MAPO worker %s spawned' % str(cpu))
             #Set model to GPU            
             program_generator.cuda()
-            execution_engine.cuda()
 
             #Fill high reward buffer
             func.clean_up(args)
@@ -366,14 +365,16 @@ if __name__ == '__main__':
                         ee_loss.append(loss.item())
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
+                        
                         if (I_ != I).sum() != I.shape[0]:
+                            print('check 0')
                             #These indexes have become negative
                             if ((I != I_) == I).sum() != 0:
                                 change_indexs = indexs[(I != I_) == I] 
                                 change_programs = programs[(I != I_) == I]
                                 change_que.put((change_indexs, change_programs, 'negative'))
                                 I[(I != I_) == I] = False
-
+                            print('check 1')
                             if (I[I_ == True] != True).sum() != 0:
                                 #These indexes have become positive
                                 change_indexs = indexs[(I_ == True)][I[I_ == True] != True]
@@ -381,6 +382,8 @@ if __name__ == '__main__':
                                 change_que.put((change_indexs, change_programs, 'positive'))
                                 I[I_ == True] = True
                         #PG positive examples training using backprop
+                        print('check 2')
+
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                         loss.backward()
