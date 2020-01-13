@@ -375,6 +375,8 @@ if __name__ == '__main__':
 
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
+                        print(I_.shape)
+                        print(I.shape)
                         if I_ != I:
                             #These indexes have become negative
                             if ((I != I_) == I).sum() != 0:
