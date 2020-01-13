@@ -363,11 +363,10 @@ if __name__ == '__main__':
                         loss.backward()
                         ee_optimizer.step()
                         ee_loss.append(loss.item())
+                       
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
-                        
                         if (I_ != I).sum() != I.shape[0]:
-                            print('check 0')
                             #These indexes have become negative
                             if ((I != I_) == I).sum() != 0:
                                 change_indexs = indexs[(I != I_) == I] 
@@ -382,29 +381,25 @@ if __name__ == '__main__':
                                 change_que.put((change_indexs, change_programs, 'positive'))
                                 I[I_ == True] = True
                         #PG positive examples training using backprop
-                        print('check 2')
-
-                        pg_optimizer.zero_grad()
-                        loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
-                        loss.backward()
-                        pg_optimizer.step()
-                        pg_loss.append(loss.item())
-                        print('check 5')
+                        if I.sum() > 0:
+                            #This check is needed to avoid floating point error
+                            pg_optimizer.zero_grad()
+                            loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
+                            loss.backward()
+                            pg_optimizer.step()
+                            pg_loss.append(loss.item())
                         
                         #PG negative examples training using RL
                         if args.pg_RL:
-                            print('check 6')
-                            raw_reward = (preds == answers).float()
-                            reward_moving_avg *= args.reward_decay
-                            reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
-                            centered_reward = raw_reward - reward_moving_avg
-                            print('check 7')
-                            
-                            pg_optimizer.zero_grad()
-                            print('check 8')
-                            program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
-                            print('check 9')
-                            pg_optimizer.step()
+                            if I.sum() != I.shape[0]:
+                                raw_reward = (preds == answers).float()
+                                reward_moving_avg *= args.reward_decay
+                                reward_moving_avg += (1.0 - args.reward_decay) * raw_reward.mean()
+                                centered_reward = raw_reward - reward_moving_avg
+                                
+                                pg_optimizer.zero_grad()
+                                program_generator.reinforce_backward(centered_reward.cuda(), args.alpha)
+                                pg_optimizer.step()
                         
                                                                                   
                         if t % args.checkpoint_every == 0:
