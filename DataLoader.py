@@ -137,10 +137,13 @@ class ClevrDataset(Dataset):
 
     
     def __len__(self):
-        if self.max_samples is not None:
-            return self.max_samples
+        if self.train_loader:
+            return 10**7
         else:
-            return len(self.all_questions)
+            if self.max_samples is not None:
+                return self.max_samples
+            else:
+                return len(self.all_questions)
     
 
         

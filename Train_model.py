@@ -200,7 +200,8 @@ if __name__ == '__main__':
             'num_workers': args.loader_num_workers,
             'balanced_n':balanced_n,
             'oversample':oversample,
-            'path_to_index': args.path_to_index_file}
+            'path_to_index': args.path_to_index_file,
+            'train_loader': True}
         
         train_loader = ClevrDataLoader(**train_loader_kwargs)    
          
