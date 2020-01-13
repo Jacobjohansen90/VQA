@@ -252,7 +252,6 @@ if __name__ == '__main__':
                                                           train_acc_loader.dataset.sample_list))
             p.start()
             processes.append(p)            
-            print('check 0')
             if args.info:
                 print('Clevr dataloader spawned')
             
@@ -329,12 +328,10 @@ if __name__ == '__main__':
             elif model_ == 'MAPO':
                 while inner_cont:
                     for batch in train_loader:            
-                        print('check 1')
                         t += 1
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         I = I.squeeze()
                         programs = programs.cuda()
-                        print('check 1')
                         #Test MAPO suggestions
                         func.set_mode('eval', [execution_engine])
                         for i in range(len(programs)):
@@ -353,7 +350,6 @@ if __name__ == '__main__':
                                     programs[i] = programs[i][I_test][0] 
                                     #0 is most likely program sequence ,-1 is least
                         func.set_mode('train', [execution_engine])
-                        print('check 2')
                         #Force programs if no high reward path
                         if args.multi_GPU and torch.cuda.device_count() > 1:
                             programs[~I] = program_generator.module.reinforce_sample(questions[~I].cuda())
@@ -369,7 +365,7 @@ if __name__ == '__main__':
                         loss.backward()
                         ee_optimizer.step()
                         ee_loss.append(loss.item())
-
+                        print('check 4')
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
                         if (I_ != I).sum() != I.shape[0]:
@@ -386,7 +382,7 @@ if __name__ == '__main__':
                                 change_programs = programs[(I_ == True)][I[I_ == True] != True]
                                 change_que.put((change_indexs, change_programs, 'positive'))
                                 I[I_ == True] = True
-
+                        print('check 5')
                         #PG positive examples training using backprop
                         pg_optimizer.zero_grad()
                         loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
