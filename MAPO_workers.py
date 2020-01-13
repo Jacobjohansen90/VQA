@@ -22,7 +22,7 @@ def MAPO_CPU(args, pg, sample_que, number):
     while True:
         question = sample_que.get()
         q_name = '-'.join(str(e) for e in question if e != 0)
-        question = torch.from_numpy(question)
+        question = torch.from_numpy(question).long()
         question = question.unsqueeze(0)
         bf_path = args.bf_load_path + q_name
         directory = args.high_reward_path+q_name+'/'
