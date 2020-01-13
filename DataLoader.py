@@ -156,7 +156,7 @@ class ClevrDataset(Dataset):
                 programs_list = os.listdir(self.hr_path+q_name)
                 if programs_list[0][-4:] == 'MAPO':
                     length = len(programs_list)
-                    programs = torch.zeros(length, 30)
+                    programs = torch.zeros(length, 30).long()
                     for i in range(length):  
                         p_name = os.listdir(self.hr_path + q_name)[i]
                         program = torch.load(self.hr_path + q_name + '/' + p_name)

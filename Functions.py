@@ -263,7 +263,6 @@ def make_HR_paths(args, pg, ee, loader):
     for batch in loader:
         q, _, feat, ans, _, _, j, done, _, _ = batch
         if args.multi_GPU and torch.cuda.device_count() > 1:
-            print(q.type())
             program_pred = pg.module.reinforce_sample(q.cuda())
         else:
             program_pred = pg.reinforce_sample(q.cuda())
@@ -278,7 +277,6 @@ def make_HR_paths(args, pg, ee, loader):
                 path = args.high_reward_path + q_name
                 if not os.path.exists(path):
                     os.mkdir(path)
-                print(program_pred.type())
                 torch.save(program_pred[i], path+p_name)
     return hr_list
 
