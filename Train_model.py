@@ -44,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
     parser.add_argument('--L2_pg', default=0.0001, type=float)
-    parser.add_argument('--L2_ee', default=0.00001, type=float)
+    parser.add_argument('--L2_ee', default=0, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
@@ -185,9 +185,10 @@ if __name__ == '__main__':
         
         if model_ == 'PG':
             max_samples = args.num_PG_samples
+            train_loader = True #Significant speed up when num of samples is small
         else:
             max_samples = args.num_train_samples
-
+            train_loader = False
                 
         train_loader_kwargs = {
             'question_path': args.train_questions,
@@ -201,7 +202,7 @@ if __name__ == '__main__':
             'balanced_n':balanced_n,
             'oversample':oversample,
             'path_to_index': args.path_to_index_file,
-            'train_loader': True}
+            'train_loader': train_loader}
         
         train_loader = ClevrDataLoader(**train_loader_kwargs)    
          
@@ -254,7 +255,6 @@ if __name__ == '__main__':
             if args.info:
                 print('Clevr dataloader spawned')
             
-            #Keep track of novel path tries
         stats = {'train_losses': [], 'train_rewards': [], 'train_losses_ts': [],
                  'train_accs':[], 'val_accs': [], 'val_accs_ts': [],
                  'best_val_acc': -1, 'best_model_t': 0, 'epoch': []}

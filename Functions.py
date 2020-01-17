@@ -149,8 +149,7 @@ def get_state(m):
         state[k] = v.clone()
     return state
             
-def check_accuracy(args, model, program_generator, execution_engine, loader, mode):
-    set_mode('eval', [program_generator, execution_engine])
+def check_accuracy(args, model, program_generator, execution_engine, loader):
     num_correct, num_samples = 0,0
     for batch in loader:
         questions, _, feats, answers, programs, _, _, done, _, _ = batch
@@ -173,7 +172,6 @@ def check_accuracy(args, model, program_generator, execution_engine, loader, mod
             _, preds = scores.data.cpu().max(1)
             num_correct += (preds == answers).sum()
             num_samples += preds.size(0)
-    set_mode('train', [program_generator, execution_engine])
     acc = float(num_correct) / num_samples
     acc = round(acc, 4)
     return acc
@@ -191,10 +189,12 @@ def checkpoint_func(args, model, program_generator, execution_engine,
         _loss = ee_loss
     elif model == 'MAPO':
         _loss = pg_loss + ee_loss
+    set_mode('eval', [program_generator, execution_engine])
     train_acc = check_accuracy(args, model, program_generator,
-                                execution_engine, train_loader, 'train')
+                                execution_engine, train_loader)
     val_acc = check_accuracy(args, model, program_generator,
-                              execution_engine, val_loader, 'val')
+                              execution_engine, val_loader)
+    set_mode('train', [program_generator, execution_engine])    
     stats['train_accs'].append(train_acc)
     stats['val_accs'].append(val_acc)
     stats['val_accs_ts'].append(t)
