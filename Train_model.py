@@ -33,9 +33,10 @@ if __name__ == '__main__':
     parser.add_argument('--shuffle_train_data', default=True, type=int)
     parser.add_argument('--num_PG_samples', default=1000, type=int)
     parser.add_argument('--PG_num_of_each', default=20, type=int) #No larger than 24
-    parser.add_argument('--oversample', default=True)
+    parser.add_argument('--oversample', default=False)
     parser.add_argument('--num_train_samples', default=None, type=int) 
-    parser.add_argument('--num_val_samples', default=None, type=int)
+    parser.add_argument('--num_val_samples', default=15000, type=int)
+    parser.add_argument('--num_acc_train_samples', default=15000, type=int)
     #If None we load all examples
 
     # Optimization options
@@ -72,8 +73,8 @@ if __name__ == '__main__':
     parser.add_argument('--reward_decay', default=0.99, type=float)
     
     #Datapaths
-    parser.add_argument('--train_questions', default='../Data/questions/train.npy')
-    parser.add_argument('--train_features', default='../Data/images/train/')
+    parser.add_argument('--train_questions', default='../Data/questions/val.npy')
+    parser.add_argument('--train_features', default='../Data/images/val/')
     parser.add_argument('--val_questions', default='../Data/questions/val.npy')
     parser.add_argument('--val_features', default='../Data/images/val/')
     parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
@@ -211,7 +212,7 @@ if __name__ == '__main__':
             'feature_path': args.train_features,
             'vocab': vocab,
             'batch_size': args.batch_size,
-            'max_samples': max_samples,
+            'max_samples': args.num_num_acc_train_samples,
             'num_workers': args.loader_num_workers}
     
         train_acc_loader = ClevrDataLoader(**train_acc_kwargs)
@@ -298,9 +299,10 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:
                         t += 1
+                        print(t)
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
                         ee_optimizer.zero_grad()
-                        if args.multi_GPU:
+                        if args.multi_GPU and torch.cuda.device_count() > 1:
                             programs_pred = program_generator.module.reinforce_sample(questions.cuda())
                         else:
                             programs_pred = program_generator.reinforce_sample(questions.cuda())

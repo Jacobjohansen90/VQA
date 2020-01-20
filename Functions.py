@@ -151,7 +151,11 @@ def get_state(m):
             
 def check_accuracy(args, model, program_generator, execution_engine, loader):
     num_correct, num_samples = 0,0
+    t = 0
+    print(loader.__len__())
     for batch in loader:
+        t += 1
+        print(t)
         questions, _, feats, answers, programs, _, _, done, _, _ = batch
         scores = None
         if args.multi_GPU and torch.cuda.device_count() > 1:

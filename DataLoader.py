@@ -24,7 +24,7 @@ def dataset_to_tensor(dataset, mask=None):
 
 class ClevrDataset(Dataset):
     def __init__(self, question_path, feature_path, vocab, mode='prefix', 
-                 balanced_n=None, oversample=None, index_list_path=None,
+                 balanced_n=None, oversample=False, index_list_path=None,
                  image_path=None, max_samples=None, hr_path=None,
                  image_idx_start_from=None, train_loader=False):
         mode_choices = ['prefix', 'postfix']
@@ -78,6 +78,8 @@ class ClevrDataset(Dataset):
                                 self.sample_list.append(i)
                                 break
         elif self.oversample:
+            print(self.oversample)
+            print('oversample')
             if self.index_list is None:
                 raise ValueError('Must provide index list')
             else:
@@ -173,7 +175,7 @@ class ClevrDataLoader(DataLoader):
         if 'vocab' not in kwargs:
             raise ValueError('Must give vocab')
         index_list_path = kwargs.pop('path_to_index', None)
-        oversample = kwargs.pop('oversample', None)
+        oversample = kwargs.pop('oversample', False)
         balanced_n = kwargs.pop('balanced_n', None)
         feature_path = kwargs.pop('feature_path')
         hr_path = kwargs.pop('high_reward_path', None)
