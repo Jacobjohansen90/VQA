@@ -299,12 +299,12 @@ if __name__ == '__main__':
                     for batch in train_loader:
                         t += 1
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
+                        ee_optimizer.zero_grad()
                         if args.multi_GPU:
                             programs_pred = program_generator.module.reinforce_sample(questions.cuda())
                         else:
                             programs_pred = program_generator.reinforce_sample(questions.cuda())
                         scores = execution_engine(feats.cuda(), programs_pred.cuda())
-                        ee_optimizer.zero_grad()
                         loss = loss_fn(scores, answers.cuda())
                         loss.backward()
                         ee_loss.append(loss.item())
@@ -349,6 +349,8 @@ if __name__ == '__main__':
                                     programs[i] = programs[i][I_test][0] 
                                     #0 is most likely program sequence ,-1 is least
                         func.set_mode('train', [execution_engine])
+                        ee_optimizer.zero_grad()
+
                         #Force programs if no high reward path
                         if args.multi_GPU and torch.cuda.device_count() > 1:
                             programs[~I] = program_generator.module.reinforce_sample(questions[~I].cuda())
@@ -358,12 +360,11 @@ if __name__ == '__main__':
                         scores = execution_engine(feats.cuda(), programs.cuda())
                         _, preds = scores.data.cpu().max(1)
                         #Train EE with positive and negative examples
-                        ee_optimizer.zero_grad()
                         loss = loss_fn(scores, answers.cuda())
                         loss.backward()
                         ee_optimizer.step()
                         ee_loss.append(loss.item())
-                       
+                        pg_optimizer.zero_grad()                       
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
                         if (I_ != I).sum() != I.shape[0]:
@@ -383,7 +384,6 @@ if __name__ == '__main__':
                         #PG positive examples training using backprop
                         if I.sum() > 0:
                             #This check is needed to avoid floating point error
-                            pg_optimizer.zero_grad()
                             loss = program_generator(questions[I].cuda(), programs[I].cuda()).mean()
                             loss.backward()
                             pg_optimizer.step()

@@ -207,9 +207,9 @@ if __name__ == '__main__':
                     pg_optimizer.step()
                 #Train EE
                 elif args.model_type == 'EE':
-                    ee_optimizer.zero_grad()  
                     programs_pred = program_generator.reinforce_sample(questions_var)
                     scores = execution_engine(feats_var, programs_pred)
+                    ee_optimizer.zero_grad()  
                     loss = loss_fn(scores, answers_var)
                     loss.backward()
                     ee_optimizer.step()
