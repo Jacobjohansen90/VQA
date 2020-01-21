@@ -243,7 +243,7 @@ if __name__ == '__main__':
                     print('MAPO worker %s spawned' % str(cpu))
             #Set model to GPU            
             program_generator.cuda()
-            train_acc_kwargs['max_samples':None]
+            train_acc_kwargs['max_samples'] = None
             hr_loader = ClevrDataLoader(**train_acc_kwargs)
 
             #Fill high reward buffer
