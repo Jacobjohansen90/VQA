@@ -178,8 +178,8 @@ class Seq2Seq(nn.Module):
                 if cur_output.data.cpu() == self.END:
                     bloom_filter.add(prg_tmp)
                     break
-            programs[i] = y
-            program_names[i] = prg_tmp
+            programs.append(y)
+            program_names.append(prg_tmp)
         return programs, program_names, bloom_filter
 
                
