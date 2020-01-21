@@ -243,14 +243,17 @@ if __name__ == '__main__':
                     print('MAPO worker %s spawned' % str(cpu))
             #Set model to GPU            
             program_generator.cuda()
+            train_acc_kwargs['max_samples':None]
+            hr_loader = ClevrDataLoader(**train_acc_kwargs)
 
             #Fill high reward buffer
             func.clean_up(args)
             print('Making HR paths')
-            hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_acc_loader)            
+            hr_list = func.make_HR_paths(args, program_generator, execution_engine, hr_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 
-                                                          train_acc_loader.dataset.sample_list))
+                                                          hr_loader.dataset.sample_list))
+            del hr_loader
             p.start()
             processes.append(p)            
             if args.info:
@@ -329,6 +332,7 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:            
                         t += 1
+                        print(t)
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         I = I.squeeze()
                         programs = programs.cuda()
