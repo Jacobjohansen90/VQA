@@ -223,6 +223,7 @@ if __name__ == '__main__':
             cpu_count = mp.cpu_count()
             execution_engine.share_memory()
             program_generator.share_memory()
+            func.set_mode('eval', [program_generator, execution_engine])      
             
             if args.MAPO_max_cpus is not None:
                 cpu_count = min(cpu_count, args.MAPO_max_cpus)
@@ -245,7 +246,6 @@ if __name__ == '__main__':
 
             #Fill high reward buffer
             func.clean_up(args)
-            func.set_mode('eval', [program_generator, execution_engine])      
             print('Making HR paths')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, train_acc_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 

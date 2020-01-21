@@ -147,7 +147,7 @@ class Seq2Seq(nn.Module):
                 probs = F.softmax(logprobs.view(N,-1), dim=1)
                 m = torch.distributions.Categorical(probs)
                 self.entropy[t] = m.entropy().item()
-                self.probs[t] = probs.item()
+                self.probs[t] = probs
                 if argmax:
                     cur_output = probs.argmax(1)
                 else:
