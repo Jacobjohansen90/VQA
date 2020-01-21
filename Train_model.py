@@ -252,7 +252,7 @@ if __name__ == '__main__':
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, hr_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 
-                                                          hr_loader.dataset.sample_list))
+                                                          train_loader.dataset.sample_list))
             del hr_loader
             p.start()
             processes.append(p)            
