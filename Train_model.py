@@ -73,8 +73,8 @@ if __name__ == '__main__':
     parser.add_argument('--reward_decay', default=0.99, type=float)
     
     #Datapaths
-    parser.add_argument('--train_questions', default='../Data/questions/val.npy')
-    parser.add_argument('--train_features', default='../Data/images/val/')
+    parser.add_argument('--train_questions', default='../Data/questions/train.npy')
+    parser.add_argument('--train_features', default='../Data/images/train/')
     parser.add_argument('--val_questions', default='../Data/questions/val.npy')
     parser.add_argument('--val_features', default='../Data/images/val/')
     parser.add_argument('--vocab_json', default='../Data/vocab/vocab.json') 
@@ -212,7 +212,7 @@ if __name__ == '__main__':
             'feature_path': args.train_features,
             'vocab': vocab,
             'batch_size': args.batch_size,
-            'max_samples': args.num_num_acc_train_samples,
+            'max_samples': args.num_acc_train_samples,
             'num_workers': args.loader_num_workers}
     
         train_acc_loader = ClevrDataLoader(**train_acc_kwargs)
@@ -369,14 +369,13 @@ if __name__ == '__main__':
                         pg_optimizer.zero_grad()                       
                         #Check that all examples are still the same as originally (posistive and negative)
                         I_ = (preds==answers)
-                        if (I_ != I).sum() != I.shape[0]:
+                        if (I_ != I).sum() > 0:
                             #These indexes have become negative
-                            if ((I != I_) == I).sum() != 0:
-                                change_indexs = indexs[(I != I_) == I] 
-                                change_programs = programs[(I != I_) == I]
+                            if (I[I_ == False] == True).sum() > 0:
+                                change_indexs = indexs[(I_ == False)][I[I_ == False] == True] 
+                                change_programs = programs[(I_ == False)][I[I_ == False] == True]
                                 change_que.put((change_indexs, change_programs, 'negative'))
-                                I[(I != I_) == I] = False
-                            print('check 1')
+                                I[I_ == False] = False
                             if (I[I_ == True] != True).sum() != 0:
                                 #These indexes have become positive
                                 change_indexs = indexs[(I_ == True)][I[I_ == True] != True]

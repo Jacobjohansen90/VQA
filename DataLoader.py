@@ -222,6 +222,7 @@ class ClevrDataLoader(DataLoader):
             program_seq_batch = default_collate(transposed[4])
         program_struct_batch = transposed[5]
         i = transposed[6]
+        i = np.asarray(i)
         done = transposed[7]
         programs = default_collate(transposed[8])
         I = default_collate(transposed[9])
