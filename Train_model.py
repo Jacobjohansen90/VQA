@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--classifier_downsample', default='maxpool2',
             choices=['maxpool2', 'maxpool4', 'none'])
     parser.add_argument('--classifier_fc_dims', default='1024')
-    parser.add_argument('--classifier_batchnorm', default=0, type=int)
+    parser.add_argument('--classifiepathsr_batchnorm', default=0, type=int)
     parser.add_argument('--classifier_dropout', default=0, type=float)
     
     #%%Training loop
@@ -299,7 +299,6 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:
                         t += 1
-                        print(t)
                         questions, _, feats, answers, _, _, _, _, _, _ = batch
                         ee_optimizer.zero_grad()
                         if args.multi_GPU and torch.cuda.device_count() > 1:
