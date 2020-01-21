@@ -122,6 +122,8 @@ class Seq2Seq(nn.Module):
         self.entropy = torch.zeros(T)
         self.probs = torch.zeros(T, 44)
         self.path = torch.zeros(T)
+        programs = []
+        program_names = []
         self.h = torch.zeros(self.rnn_layers,T,self.hidden_dim)
         self.c = torch.zeros(self.rnn_layers,T,self.hidden_dim)
         y = torch.LongTensor(N, T).fill_(self.NULL)
@@ -176,7 +178,9 @@ class Seq2Seq(nn.Module):
                 if cur_output.data.cpu() == self.END:
                     bloom_filter.add(prg_tmp)
                     break
-            return Variable(y.type_as(x.data)), bloom_filter, prg_tmp
+            programs[i] = y
+            program_names[i] = prg_tmp
+        return programs, program_names, bloom_filter
 
                
     def program_to_probs(self, questions, program_preds, temperature):
