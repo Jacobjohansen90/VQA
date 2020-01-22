@@ -44,8 +44,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
-    parser.add_argument('--L2_pg', default=0.0001, type=float)
-    parser.add_argument('--L2_ee', default=0, type=float)
+    parser.add_argument('--L2_pg', default=0.001, type=float)
+    parser.add_argument('--L2_ee', default=0.0001, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
             #Fill high reward buffer
             func.clean_up(args)
-            print('Making HR paths')
+            print('Making HR paths - this takes a while')
             hr_list = func.make_HR_paths(args, program_generator, execution_engine, hr_loader)            
             p = mp.Process(target=func.MAPO_loader, args=(args, hr_list, change_que, 
                                                           sample_que, vocab, 
@@ -332,7 +332,6 @@ if __name__ == '__main__':
                 while inner_cont:
                     for batch in train_loader:            
                         t += 1
-                        print(t)
                         questions, _, feats, answers, _, _, indexs, _, programs, I = batch
                         I = I.squeeze()
                         programs = programs.cuda()

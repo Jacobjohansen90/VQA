@@ -9,7 +9,7 @@ Created on Mon Nov 11 14:27:41 2019
 import json
 import matplotlib.pyplot as plt
 
-model = 'EE_10k'
+model = 'EE_3k_20_each'
 show = True
 path = '/home/jacob/Desktop/Specialle/Data/models/'+model+'.json'
 
@@ -31,7 +31,7 @@ plt.plot(ts, train_accs, 'tab:orange', label='Train')
 plt.title('Accuracy: %s \n Best val: %.4f at t: %d' %(model, best_val, best_t))
 plt.xlabel('Iterations')
 plt.ylabel('Accuracy')
-plt.ylim([0.4,1])
+plt.ylim([0,1])
 plt.legend()
 if show:
     plt.show()

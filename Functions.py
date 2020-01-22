@@ -262,6 +262,8 @@ def MAPO_loader(args, hr_list, change_que, sample_que, vocab, sample_list):
 def make_HR_paths(args, pg, ee, loader):
     hr_list = []
     done = False
+    k = 0
+    print('Making HR paths for %d program batches' % loader.__len__())
     for batch in loader:
         q, _, feat, ans, _, _, j, done, _, _ = batch
         if args.multi_GPU and torch.cuda.device_count() > 1:
@@ -280,6 +282,10 @@ def make_HR_paths(args, pg, ee, loader):
                 if not os.path.exists(path):
                     os.mkdir(path)
                 torch.save(program_pred[i], path+p_name)
+        k += 1
+        if k % 10000 ==0:
+            print('%d / %d' %(k, loader.__len__()))
+            
     return hr_list
 
 def update_hr_paths(args, sample_list, indexs, questions, program, change):
