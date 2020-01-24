@@ -44,8 +44,8 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_PG', default=5e-4, type=float)
     parser.add_argument('--learning_rate_EE', default=1e-4, type=float)
     parser.add_argument('--learning_rate_MAPO', default=5e-5, type=float)
-    parser.add_argument('--L2_pg', default=0.001, type=float)
-    parser.add_argument('--L2_ee', default=0.0001, type=float)
+    parser.add_argument('--L2_pg', default=0.00005, type=float)
+    parser.add_argument('--L2_ee', default=0.00005, type=float)
     parser.add_argument('--temperature', default=1.0, type=float)
     
     # Output options
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--classifier_downsample', default='maxpool2',
             choices=['maxpool2', 'maxpool4', 'none'])
     parser.add_argument('--classifier_fc_dims', default='1024')
-    parser.add_argument('--classifiepathsr_batchnorm', default=0, type=int)
+    parser.add_argument('--classifier_batchnorm', default=0, type=int)
     parser.add_argument('--classifier_dropout', default=0, type=float)
     
     #%%Training loop

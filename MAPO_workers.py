@@ -44,4 +44,4 @@ def MAPO_CPU(args, pg, sample_que, number):
                                                                        argmax=args.MAPO_sample_argmax)
         bf.export(bf_path)             
         for program, program_name in zip(program_preds, program_names):
-            torch.save(program, directory + program_name+'.pt')
+            torch.save(program, directory + program_name+'_MAPO'+'.pt')

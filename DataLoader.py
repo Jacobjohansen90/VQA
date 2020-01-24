@@ -151,13 +151,14 @@ class ClevrDataset(Dataset):
         if self.hr_path is not None:
             if os.path.exists(self.hr_path+q_name):
                 programs_list = os.listdir(self.hr_path+q_name)
-                if programs_list[0][-4:] == 'MAPO':
+                if programs_list[0][-7:-3] == 'MAPO':
                     length = len(programs_list)
                     programs = torch.zeros(length, 30).long()
                     for i in range(length):  
                         p_name = os.listdir(self.hr_path + q_name)[i]
                         program = torch.load(self.hr_path + q_name + '/' + p_name)
                         programs[i] = program
+                        os.remove(self.hr_path+q_name+'/'+p_name)
                     return programs, torch.tensor([False])
                 else:
                     p_name = os.listdir(self.hr_path + q_name)[0]
